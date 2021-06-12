@@ -1,0 +1,160 @@
+---
+title: "HW1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+```
+
+# 1. (a)
+```{r}
+set.seed(1234)
+
+leuk <- read.csv("C:/USER/grad/2020-2/자료분석특론2/data/leukemia_big.csv", header=T)
+ALL = leuk[136,c(1:20, 35:61)]; ALL = t(ALL); rownames(ALL) <- NULL; colnames(ALL) = c("ALL136")
+AML = leuk[136,c(21:34, 62:72)]; AML = t(AML); rownames(AML) <- NULL; colnames(AML) = c("AML136")
+
+hist(ALL)
+hist(AML)
+
+# (a)
+boot.all <- numeric(1000)
+
+for(i in 1:1000){
+  boot.all[i] <- mean(sample(ALL, replace=T))
+}
+mean(boot.all)
+
+# (b)
+boot.aml <- numeric(1000)
+
+for(i in 1:1000){
+  boot.aml[i] <- mean(sample(AML, replace=T))
+}
+mean(boot.aml)
+
+# (c)
+hist(boot.all)
+
+# 95% 신뢰구간
+quantile(boot.all, 0.025)
+quantile(boot.all, 0.975)
+
+hist(boot.aml)
+
+# 95% 신뢰구간
+quantile(boot.aml, 0.025)
+quantile(boot.aml, 0.975)
+
+# 히스토그램이 정규분포 형태로, 표본평균의 분포가 n이 충분히 클 때 정규분포를 따르는 것을 확인할 수 있다. (CLT)
+# 또한 평균이 달라서, AML과 ALL에 평균 차이가 존재한다고 판단할 수 있다.
+```
+
+# 2.
+```{r}
+# (a)
+d <- numeric(200)
+x <- numeric(500)
+mu <- numeric(500)
+for(j in 1:200){
+  for(i in 1:500){
+    mu[i] <- 3*i/500
+    x[i] <- rnorm(mu[i], sd=1, n=500)
+  }
+  imax = which.max(x)
+  d[j] = x[imax] - mu[imax]
+}
+
+# (b)
+hist(d, bins=25)
+
+
+# (c)
+# Figure 3.4 의 경우 gene 610이 평균이 0 근처인 분포에서 극단값이지만, 2번의 경우 베이지안 방법으로 정규분포로부터 샘플링하여 하여 gene 610이 극단값의 위치가 아닐 때 많다. 따라서 베이지안은 사전 분포를 잘 결정하는 것이 중요하다.
+```
+
+# 3.
+```{r}
+## https://bioinformaticsandme.tistory.com/10 참고해서 함수 작성
+# source("C:/USER/grad/2020-2/자료분석특론2/HW1/permfunc.R")
+
+t.stat = t.test(ALL, AML, paired = FALSE, conf.level = 0.95)$statistic # original two sample t-test
+
+# Function to perform permutation test
+perm.test <- function(x, y, n.perm=1000, var.equal=TRUE, pval=FALSE){
+  # number of data points
+  kx <- length(x)
+  ky <- length(y)
+  n <- kx + ky
+  
+  # Data re-compiled
+  X <- c(x,y)
+  z <- rep(1:0, c(kx,ky))
+  
+  allt <- 1:n.perm
+  for(i in 1:n.perm) {
+    z <- sample(z)
+    xn <- X[z==1]
+    yn <- X[z==0]
+    allt[i] <- t.test(xn,yn)$statistic
+  }
+  
+  return(allt)
+}
+
+B = 1000
+tperm = perm.test(ALL, AML, n.perm=B)
+hist(tperm)
+abline(v=abs(t.stat), lty=2, col=2)
+
+# p-value
+mean(abs(tperm) >= abs(t.stat))
+
+# two sample t-test 결과의 t통계량이 분포의 극단치에서 확인됨, p-value < 0.05, 이는 우연이 아닐 것이므로 reject H0, H0: mu(ALL) == mu(AML)
+```
+
+# 4.
+```{r}
+library(mvtnorm) # for rmvnorm, generate bivariate normal
+library(bivariate) # for nbvpdf
+library(mixtools) # for ellipse
+
+# Bivariate Normal 3D
+f <- bivariate::nbvpdf.2(0, 0, 1, 1, 0.5) # X mean, Y mean, X var, Y var, X&Y cov
+plot(f,TRUE)
+
+# (a)
+N <- 1000
+mu <- c(0,0) # Mean
+var <- matrix(c(1, 0.5, 0.5, 1),2) # Covariance matrix
+bvn.sample = mvtnorm::rmvnorm(N, mu, var) # method="svd"
+
+ellipse_bvn <- function(bvn, alpha){
+  Xbar <- apply(bvn,2,mean)
+  S <- cov(bvn)
+  mixtools::ellipse(Xbar, S, alpha = alpha, col="red")
+}
+
+# Bivariate Normal 2D
+plot(bvn.sample, xlab="X1", ylab="X2", main='Bivarate Normal', col=3, pch=15)
+ellipse_bvn(bvn.sample, 0.5)
+ellipse_bvn(bvn.sample, 0.05)
+
+# (b)
+X1onX2 <- lm(bvn.sample[,1]~bvn.sample[,2]) # X1|X2
+summary(X1onX2)
+# X1|X2 ~ N(μ1 + σ21/σ22(x2-μ2), σ11 - σ21^2/σ22), 이때 분산 ≈ σ22(1-R^2) 인가?
+1 - (0.5^2)/1
+rsq1 <- summary(X1onX2)$r.sq; 1*(1-rsq1)
+# 조건부 분포 분산의 값이 값이 σ22(1-R^2)와 매우 비슷하다.
+
+# (c)
+X2onX1 <- lm(bvn.sample[,2]~bvn.sample[,1]) # X2|X1
+summary(X2onX1)
+# X2|X1 ~ N(μ2 + σ12/σ11(x1-μ1), σ22 - σ12^2/σ11), 이때 분산 ≈ σ11(1-R^2) 인가?
+1 - (0.5^2)/1
+rsq2 <- summary(X2onX1)$r.sq; 1*(1-rsq2)
+# (b)의 결과와 마찬가지로, 조건부 분포 분산의 값이 값이 σ22(1-R^2)와 매우 비슷하다.
+```
+

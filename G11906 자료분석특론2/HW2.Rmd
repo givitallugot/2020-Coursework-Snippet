@@ -1,0 +1,197 @@
+---
+title: "HW2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+
+library(reticulate)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+
+library(tm)
+setwd('C:/TESTR')
+```
+
+#### 1-1) 각 변수들에 대한 기초 통계량(평균, 중앙값, 분산)을 계산하시오. <br>
+##### [R]
+```{r label='R CODE'}
+summary(iris)
+df <- data.frame(variable = c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'),
+           variance = c(var(iris[,'Sepal.Length']), var(iris[,'Sepal.Width']), var(iris[,'Petal.Length']), var(iris[,'Petal.Width'])))
+kable(df) %>% kable_styling(full_width=F)
+```  
+
+##### [Python]
+```{python}
+from sklearn.datasets import load_iris
+import pandas as pd
+import numpy as np
+Iris = load_iris()
+
+iris = pd.DataFrame(data=np.c_[Iris['data'], Iris['target']], columns=Iris['feature_names']+['target'])
+iris['target'] = iris['target'].map({0: "setosa", 1: "versicolor", 2: "virginica"})
+
+iris.describe()
+
+np.var(iris)
+```  
+
+
+#### 1-2) 각 변수들에 대한 기초 통계량(평균, 중앙값, 분산)을 Species별로 계산하시오.<br>
+##### [R]
+```{r}
+df_mean <- as.data.frame(iris %>% group_by(Species) %>% summarize(Sepal.Length.mean=mean(Sepal.Length), Sepal.Width.mean=mean(Sepal.Width), Petal.Length.mean=mean(Petal.Length), Petal.Width.mean=mean(Petal.Width), Sepal.Length.median=median(Sepal.Length)))
+
+df_median <- as.data.frame(iris %>% group_by(Species) %>% summarize(Sepal.Length.median=median(Sepal.Length), Sepal.Width.median=median(Sepal.Width), Petal.Length.median=median(Petal.Length), Petal.Width.median=median(Petal.Width), Sepal.Length.median=median(Sepal.Length)))
+
+df_var <- as.data.frame(iris %>% group_by(Species) %>% summarize(Sepal.Length.var=var(Sepal.Length), Sepal.Width.var=var(Sepal.Width), Petal.Length.var=var(Petal.Length), Petal.Width.var=var(Petal.Width), Sepal.Length.var=var(Sepal.Length)))
+
+kable(df_mean) %>% kable_styling(full_width=F)
+kable(df_median) %>% kable_styling(full_width=F)
+kable(df_var) %>% kable_styling(full_width=F)
+```  
+
+##### [Python]
+```{python}
+iris.groupby(['target']).mean()
+iris.groupby(['target']).median()
+iris.groupby(['target']).var()
+```  
+
+
+#### 2. 주당 근무시간이 40시간 이내면 시간당 임금이 만원이고 40시간이 초과되는 부분에 대해서는 1.5배를 지급하는 경우 주당 근무시간을 입력받으면 출력으로 임금계산이 되는 함수 mywage를 python과 R로 각각 작성하시오.<br>
+##### [R]
+```{r}
+mywage <- function(time){
+  if(time <= 40 && time >= 0){ sprintf('임금: %d원', time*10000) }
+  else if(time > 40) { extra = (time-40)*1.5; sprintf('임금: %.1f원', (40+extra)*10000) }
+  else { print('근무 시간이 없습니다.') }
+}
+mywage(30)
+mywage(45)
+mywage(-5)
+```  
+
+##### [Python]
+```{python}
+def mywage(time):
+    if time <= 40 and time >= 0:
+        print('임금: ', time*10000, '원', sep='')
+    elif time > 40:
+        extra = (time - 40)*1.5
+        print('임금: ', (40+extra)*10000, '원', sep='')
+    else:
+        print("근무 시간이 없습니다.")
+
+mywage(30)
+
+mywage(45)
+
+mywage(-5)
+```  
+
+
+#### 3. 자연수 n과 실수 p를 함수의 인자로 받아 1부터 n까지의 p승의 합을 계산하는 함수 sumPower를 python과 R로 각각 작성하시오 <br>
+##### [R]
+```{r}
+sumPower <- function(n, p){
+  result = 0
+  for(i in 1:n){
+    result = result + i^p
+  }
+  return(result)
+}
+sumPower(5, 3)
+```  
+
+##### [Python]
+```{python}
+def sumPower(n, p):
+    result = 0
+    for i in range(n):
+        result = result + (i+1)**p
+        
+    return result
+
+sumPower(5, 3)
+```  
+
+
+#### 4 & 5. 텍스트가 들어있는 두 파일이 주어진 경우 두 파일의 이름을 사용해 문서를 읽고 두 문서의 내용이 얼마나 비슷한지를 판단하는 함수 TestSim 을 Python과 R로 각각 작성하시오. 작성한 함수와 text1.txt와 text2.txt의 두 파일을 이용하여 유사도를 계산하시오. <br>
+##### [R]
+```{r}
+read_txt_freq <- function(filename){
+  # TestSim에서 호출되는 함수로 파일을 읽고 전처리 후 단어 및 빈도 출력
+  filepath <- paste0('C:/USER/grad/2020-2/자료분석특론2/HW2/', filename, '.txt', sep='')
+  sample <- scan(filepath, what="character")
+  source <- VectorSource(sample)
+  corpus <- Corpus(source)
+  corpus <- tm_map(corpus, tolower) # 소문자로
+  # corpus <- tm_map(corpus, removePunctuation) # punctuation 제거
+  corpus <- tm_map(corpus, stripWhitespace) # Whitespace 제거
+  # corpus <- tm_map(corpus, removeWords, stopwords("english")) # 영어 불용어
+  # corpus <- tm_map(corpus, removeWords, c("dont", "can", "what", "cant")) # 특정 단어
+  dtm <- DocumentTermMatrix(corpus) # corpus를 dtm(문서->행, 용어->열)으로 변환, 출현빈도 counting
+  dtm <- as.matrix(dtm)
+  freq <- colSums(dtm)
+  freq <- sort(freq, decreasing=T) # freq 오름차순
+  return(freq)
+}
+
+TestSim <- function(file1, file2){
+  freq1 <- read_txt_freq('text1')
+  freq2 <- read_txt_freq('text2')
+  
+  # calculate jaccard index (유사도)
+  inter = 0 # 교집합 수
+  for(i in 1:length(freq1)){
+    if(names(freq1)[i] %in% names(freq2)){ 
+      inter = inter + 1 
+    }
+  }
+  uni = length(unique(c(names(freq1), names(freq2)))) # 합집합 수
+  jaccardindex = inter / uni
+  return(jaccardindex)
+}
+
+TestSim('text1', 'text2') # 유사도 0.0993
+```  
+##### [Python]
+```{python}
+import pandas as pd
+import re
+from nltk.corpus import stopwords
+
+def read_txt_freq(filename):
+    # Testsim에서 호출되는 함수로 데이터를 읽고 전처리하여 단어만 나열
+    filepath = 'C:/USER/grad/2020-2/자료분석특론2/HW2/'+filename+'.txt'
+    txt = pd.read_csv(filepath,
+                       header=None, delimiter='\n', quoting=3) # 쌍따옴표 무시
+
+    txt = re.sub('[^a-zA-Z]', ' ', str(txt)) # 영문자 이외 문자는 공백으로 변환
+    txt = txt.lower().split() # 소문자로 변환
+
+    # console 실행 필요
+    # import nltk
+    # nltk.download("stopwords")
+
+    stops = set(stopwords.words('english'))
+    txt = [word for word in txt if not word in stops] # 불용어 제거
+    return txt
+    
+def TestSim(file1, file2):
+    freq1 = read_txt_freq(file1)
+    freq2 = read_txt_freq(file2)
+    
+    inter = len(set(freq1).intersection(freq2)) # intersection
+    uni = len(list(set(freq1+freq2))) # union
+    jaccardindex = inter / uni
+    
+    return jaccardindex
+
+TestSim('text1', 'text2') # 0.095
+```
+

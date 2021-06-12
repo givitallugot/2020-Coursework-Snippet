@@ -1,0 +1,46 @@
+---
+title: "HW2"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. 다음과 같은 AR(2) 모형을 고려하자.
+```{r}
+# (1)
+set.seed(1)
+n <- 500; phi.1 = 0.6 ; phi.2 = 0.27
+a <- rnorm(n)
+z <- c(); z[1] = 0; z[2] = 0
+for (t in 3:n) {
+  z[t] = phi.1*z[t-1] + phi.2*z[t-2] + a[t]
+}
+plot(z, type='l', main='Timeseries Plot of AR(2)')
+
+# (2): Population ACF
+# ρk가 만족하는 difference equation은 ρk = φ1ρk-1 + φ2ρk-2 이고
+# ρ0 = 1, ρ1 = φ1/(1-φ2) = 0.8219
+rho = c(); M = 50;
+rho[1] = 1;
+rho[2] = phi.1/(1-phi.2)
+for (k in 3:M) {
+  rho[k] = phi.1*rho[k-1] + phi.2*rho[k-2]
+}
+plot(rho, type='l') # 지수적 감소
+
+# (3): Sample ACF
+acf(z, lag.max=50)
+
+# (4): 특성방정식
+# (1 - 0.6B - 0.27B^2) = 0 
+# (0.3B + 1)(-0.9B + 1)
+# B = -1/0.3 or 1/0.9 => 특성근
+# φ = -0.3 or 0.9 => 특성근의 역수
+
+# (5)
+# 특성근(역근)의 절대값이 모두 1보다 크다 => 정상
+# φ의 절대값이 모두 1보다 작다 => 정상
+```
+

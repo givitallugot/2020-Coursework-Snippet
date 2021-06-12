@@ -1,0 +1,433 @@
+---
+title: "HW5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+```
+
+### PART 1. Smoking and Mortality
+#### 흡연과 수명의 연관성 분석 
+##### a.
+```{r cars}
+smoke <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW5/smoke.csv", header=T, na.string="*")
+
+smoke$non_tqx <- smoke$non_deaths/smoke$non_pop
+smoke$co_tqx <- smoke$co_deaths/smoke$co_pop
+smoke$gom_non_tqx <- log(-log(1-smoke$non_tqx))
+smoke$gom_co_tqx <- log(-log(1-smoke$co_tqx))
+
+library(ggplot2)
+
+p1 <- ggplot(smoke, aes(age_m, non_tqx)) + geom_smooth(color = "lightblue", span = 0.6, se=FALSE) + geom_point(color='blue') + geom_smooth(aes(age_m, co_tqx), span=0.6, color='pink', se=FALSE)+ geom_point(aes(age_m, co_tqx), color='red') + labs(title = "tqx of nonsmoker and cigaratte only") + theme_light()
+p2 <- ggplot(smoke, aes(age_m, gom_non_tqx)) + geom_smooth(method="lm", color = "lightblue", span = 0.6, se=FALSE) + geom_point(color='blue') + geom_smooth(aes(age_m, gom_co_tqx), method="lm", span=0.6, color='pink', se=FALSE) + geom_point(aes(age_m, gom_co_tqx), color='red') + labs(title = "gompertz tqx of nonsmoker and cigaratte only") + 
+  theme_light() + annotate("text", x=57, y=-1, label=paste("R.sq = ", round(summary(lm(gom_co_tqx ~ age_m, smoke))$r.squared,4)*100, "%", sep=""), alpha=0.7) + annotate("text", x=75, y=-2.1, label=paste("R.sq = ", round(summary(lm(gom_non_tqx ~ age_m, smoke))$r.squared,4)*100, "%", sep=""), alpha=0.7)
+
+library(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+# 흡연 그룹의 사망확률이 비흡연 그룹에 비해 높다.
+# R.sq가 매우 높은 것을 보아 사망 확률에 대한 gompertz 법칙이 성립함을 알 수 있다. ln(-ln(1-tqx)) = a + b*age_m
+```
+
+##### b.
+```{r}
+# nonsmoker
+lm.fit.non <- lm(gom_non_tqx ~ age_m, smoke)
+astr.hat.non.lm <- round(summary(lm.fit.non)$coef[1],4)
+b.hat.non.lm <- round(summary(lm.fit.non)$coef[2],4)
+
+mle.gompertz.non <- function(par){
+  z <- par[1] + par[2]*smoke$age_m
+  tqx <- 1-exp(-exp(z))
+  ll <- -sum(log(dbinom(smoke$non_deaths, smoke$non_pop, tqx))) #이산, pmf
+  return(ll)
+}
+mle.rslt.non <- optim(par=c(astr.hat.non.lm, b.hat.non.lm), mle.gompertz.non)
+astr.hat.non.mle <- round(mle.rslt.non$par[1],4)
+b.hat.non.mle <- round(mle.rslt.non$par[2],4)
+
+# cigarette only
+lm.fit.co <- lm(gom_co_tqx ~ age_m, smoke)
+astr.hat.co.lm <- round(summary(lm.fit.co)$coef[1],4)
+b.hat.co.lm <- round(summary(lm.fit.co)$coef[2],4)
+
+mle.gompertz.co <- function(par){
+  z <- par[1] + par[2]*smoke$age_m
+  tqx <- 1-exp(-exp(z))
+  ll <- -sum(log(dbinom(smoke$co_deaths, smoke$co_pop, tqx))) #이산, pmf
+  return(ll)
+}
+mle.rslt.co <- optim(par=c(astr.hat.co.lm, b.hat.co.lm), mle.gompertz.co)
+astr.hat.co.mle <- round(mle.rslt.co$par[1],4)
+b.hat.co.mle <- round(mle.rslt.co$par[2],4)
+
+library(knitr)
+library(kableExtra)
+ka <- data.frame(astar.hat=c(astr.hat.non.lm, astr.hat.co.lm, astr.hat.non.mle, astr.hat.co.mle), b.hat=c(b.hat.non.lm, b.hat.co.lm, b.hat.non.mle, b.hat.co.mle), row.names=c("Non-Smoker", "Cigarette-Only", "Non-Smoker*", "Cigarette-Only*"))
+kable(ka) %>% kable_styling(full_width=F) %>% pack_rows("LSE", 1,2) %>% pack_rows("MLE", 3,4) %>% add_footnote(c("LSE는 초기값이 필요 없으며 간단하다.", "MLE로 구한 추정치는 n이 증가하면 추정치가 참값에 수렴한다는 장점이 있으나 초기값 설정이 필요하다."), notation="number")
+```
+
+##### c.
+```{r}
+# MLE (a* hat, b hat)를 이용
+x <- 20
+t <- seq(0, 100, by=1)
+f <- seq(0, 70, by=5) # 20세 - 90세
+
+b <- b.hat.non.mle
+a <- astr.hat.non.mle - log((exp(b*6)-1)/b) # t=6년간 자료
+lx <- (10^5)*exp(-exp(a + b*x)*(exp(b*t) - 1)/b)
+ex <- 0;
+for(i in 20:119){
+  ex[i-19] <- (1/2) + sum(lx[(i-18):100]/lx[i-19])
+}
+
+b. <- b.hat.co.mle
+a. <- astr.hat.co.mle - log((exp(b.*6)-1)/b.) # t=6년간 자료
+lx. <- (10^5)*exp(-exp(a. + b.*x)*(exp(b.*t) - 1)/b.)
+ex. <- 0;
+for(i in 20:119){
+  ex.[i-19] <- (1/2) + sum(lx.[(i-18):100]/lx.[i-19])
+}
+
+dex <- ex - ex.
+dexex <- 24*dex/ex
+
+lifeT <- data.frame(x = f+20, lx.n = lx[f+1], ex.n=ex[f+1],
+                              lx.c = lx.[f+1], ex.c=ex.[f+1],
+                              dex = dex[f+1], dexex24 = dexex[f+1])
+kable(lifeT) %>% kable_styling(full_width=F) %>% add_header_above(c(" ", "Non-Smoker" = 2, "Cigarette-Only" = 2, " "=2))
+```
+
+##### d.
+```{r}
+lxs <- data.frame(t=c(20:100), lx = lx[1:81], lx. = lx.[1:81])
+exs <- data.frame(t=c(20:100), ex = ex[1:81], ex. = ex.[1:81])
+p1 <- ggplot(lxs, aes(t, lx)) + geom_smooth(color = "lightblue", span = 0.6, se=FALSE) + geom_point(color='blue') + geom_smooth(aes(t, lx.), span=0.6, color='pink', se=FALSE) + geom_point(aes(t, lx.), color='red') + labs(title = "Time-Series Plot for lx and lx*") + theme_light()
+p2 <- ggplot(exs, aes(t, ex)) + geom_smooth(color = "lightblue", span = 0.6, se=FALSE) + geom_point(color='blue') + geom_smooth(aes(t, ex.), span=0.6, color='pink', se=FALSE) + geom_point(aes(t, ex.), color='red') + labs(title = "Time-Series Plot for ex and ex*") + theme_light()
+library(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+```
+1. 20세 이후 나이가 들수록 비흡연자와 흡연자의 생존자 수에 격차가 발생하여 흡연자의 생존자 수가 더 적지만 90세 이후로는 다시 그 격차가 사라진다.
+2. 20세부터 흡연자의 기대생존율(ex*)이 비흡연자보다 낮지만 높지만 80세 이후로 그 격자가 줄어든다.
+
+### PART 2. Locomotive control data
+#### 중도절단된(Censored) 자료를 이용한 수명분포 추정
+##### a. (use complete data)
+```{r}
+loco <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW5/locomotive.csv", header=T)
+loco$lnmiles <- log(loco$miles)
+par(mfrow=c(1, 2))
+hist(loco$miles, main="Histogram of y")
+hist(loco$lnmiles, main="Histogram of lny")
+par(mfrow=c(1, 1))
+
+```
+
+##### b. (use complete data)
+```{r}
+library(rmutil)
+loco_c <- loco[loco$tag == 1,]
+loco_c$pr <- rank(loco_c$miles)/(nrow(loco_c) + 1)
+loco_c$norm_x <- qnorm(loco_c$pr) # ln은 log-normal
+loco_c$gompertz_x <- log(-log(1-loco_c$pr)) # weibull
+loco_c$gumbel_x <- -log(-log(loco_c$pr)) # Frechet
+
+weibull_x <- ggplot(loco_c, aes(x=gompertz_x, y=miles)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q Weibull", subtitle = paste("R.sq = ", round(summary(lm(lnmiles ~ gompertz_x, loco_c))$r.squared,4)*100, "%", sep = "")) + theme_light()
+lognorm_x <- ggplot(loco_c, aes(x=norm_x, y=miles)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q Log-Normal", subtitle = paste("R.sq = ", round(summary(lm(lnmiles ~ norm_x, loco_c))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gompertz_x <- ggplot(loco_c, aes(x=gompertz_x, y=miles)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q Gompertz", subtitle = paste("R.sq = ", round(summary(lm(miles ~ gompertz_x, loco_c))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gumbel_x <- ggplot(loco_c, aes(x=gumbel_x, y=miles)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q Gumbel", subtitle = paste("R.sq = ", round(summary(lm(miles ~ gumbel_x, loco_c))$r.squared,4)*100, "%", sep = "")) + theme_light()
+norm_x <- ggplot(loco_c, aes(x=norm_x, y=miles)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q Normal", subtitle = paste("R.sq = ", round(summary(lm(miles ~ norm_x, loco_c))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+grid.arrange(weibull_x, lognorm_x, gompertz_x, gumbel_x, norm_x, ncol=3)
+
+# ln(x-a) 하는 이유?, rank 구할 때
+# 3 parameter 를 가정하는 이유, 초기값을 집어넣는 이유. 추정할 모수가 많아지면 오히려 잘 추정이 안되는거 아닌가?
+
+# gompertz distribution, R-sq = 97.18%
+lm.fit <- lm(miles ~ gompertz_x, data = loco_c)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+cbind(mu.hat, sigma.hat)
+```
+
+##### c. (use complete+censored data, mle는 censored data 이용 가능)
+```{r}
+library(optimx)
+
+# 2-parameter weibull
+mu.hat <- summary(lm(lnmiles ~ gompertz_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(lnmiles ~ gompertz_x, data = loco_c))$coef[2]
+
+weibull2.mle <- function(par){
+  z <- (loco$lnmiles - par[1])/par[2]
+  G <- function(z) {
+    return(1 - exp(-exp(z)))
+  }
+  g <- function(z) { # pdf function of gompertz
+    return(exp(-exp(z))*exp(z)*(1/par[2])*(1/loco$miles))
+  }
+  ll <- -sum(loco$tag*log(g(z)) + (1-loco$tag)*log(1-G(z)))
+  return(ll)
+}
+weibull2.rslt <- optim(par=c(mu.hat, sigma.hat), weibull2.mle, hessian=TRUE)
+weibull2.2p <- 2*length(weibull2.rslt$par) # p = number of parameters
+weibull2.ll <- round(-2*(-weibull2.rslt$value[1]),4) 
+weibull2.AIC <- weibull2.ll + weibull2.2p
+weibull2.mu <- weibull2.rslt$par[1]
+weibull2.sigma <- weibull2.rslt$par[2]
+
+# 3-parameter weibull
+# 초기값 a 찾기
+R.sq <- data.frame(a = seq(0,10.02,0.01), rsq = c(1:1003))
+for(i in 1:1003){
+  R.sq$rsq[i] <- summary(lm(log(miles-R.sq$a[i]) ~ gompertz_x, data = loco_c))$r.sq
+}
+a.hat <- R.sq$a[which.max(R.sq$rsq)] # a = 0
+
+mu.hat <- summary(lm(log(miles-a.hat) ~ gompertz_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(log(miles-a.hat) ~ gompertz_x, data = loco_c))$coef[2]
+
+weibull3.mle <- function(par){
+  z <- (log(loco$miles-par[1]) - par[2])/par[3]
+  G <- function(z) {
+    return(1 - exp(-exp(z)))
+  }
+  g <- function(z) { # pdf function of gompertz
+    return(exp(-exp(z))*exp(z)*(1/par[3])*(1/(loco$miles-par[1])))
+  }
+  ll <- -sum(loco$tag*log(g(z)) + (1-loco$tag)*log(1-G(z)))
+  return(ll)
+}
+weibull3.rslt <- optim(par=c(a.hat, mu.hat, sigma.hat), weibull3.mle, hessian=TRUE)
+weibull3.2p <- 2*length(weibull3.rslt$par) # p = number of parameters
+weibull3.ll <- round(-2*(-weibull3.rslt$value[1]),4) 
+weibull3.AIC <- weibull3.ll + weibull3.2p
+weibull3.a <- weibull3.rslt$par[1]
+weibull3.mu <- weibull3.rslt$par[2]
+weibull3.sigma <- weibull3.rslt$par[3]
+
+# Log-Normal
+mu.hat <- summary(lm(lnmiles ~ norm_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(lnmiles ~ norm_x, data = loco_c))$coef[2]
+
+lognorm.mle <- function(par){
+  G <- function() {
+    return(plnorm(loco$miles, par[1], par[2]))
+  }
+  g <- function() { # pdf function of gompertz
+    return(dlnorm(loco$miles, par[1], par[2]))
+  }
+  ll <- -sum(loco$tag*log(g()) + (1-loco$tag)*log(1-G()))
+  return(ll)
+}
+lognorm.rslt <- optim(par=c(mu.hat, sigma.hat), lognorm.mle, hessian=TRUE)
+lognorm.2p <- 2*length(lognorm.rslt$par) # p = number of parameters
+lognorm.ll <- round(-2*(-lognorm.rslt$value[1]),4) 
+lognorm.AIC <- lognorm.ll + lognorm.2p
+lognorm.mu <- lognorm.rslt$par[1]
+lognorm.sigma <- lognorm.rslt$par[2]
+
+# Gompertz
+mu.hat <- summary(lm(miles ~ gompertz_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(miles ~ gompertz_x, data = loco_c))$coef[2]
+
+gompertz.mle <- function(par){
+  z <- (loco$miles - par[1])/par[2]
+  G <- function(z) {
+    return(1 - exp(-exp(z)))
+  }
+  g <- function(z) { # pdf function of gompertz
+    return(exp(-exp(z))*exp(z)*(1/par[2]))
+  }
+  ll <- -sum(loco$tag*log(g(z)) + (1-loco$tag)*log(1-G(z)))
+  # ll <- -sum(log(g(z)))
+  return(ll)
+}
+gompertz.rslt <- optim(par=c(mu.hat, sigma.hat), gompertz.mle, hessian=TRUE)
+gompertz.2p <- 2*length(gompertz.rslt$par) # p = number of parameters
+gompertz.ll <- round(-2*(-gompertz.rslt$value[1]),4) 
+gompertz.AIC <- gompertz.ll + gompertz.2p
+gompertz.mu <- gompertz.rslt$par[1]
+gompertz.sigma <- gompertz.rslt$par[2]
+
+# Gumbel
+mu.hat <- summary(lm(miles ~ gumbel_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(miles ~ gumbel_x, data = loco_c))$coef[2]
+
+gumble.mle <- function(par){
+  z <- (loco$miles - par[1])/par[2]
+  G <- function(z) {
+    return(exp(-exp(-z)))
+  }
+  g <- function(z) { # pdf function of gompertz
+    return(exp(-exp(-z))*exp(-z)*(1/par[2]))
+  }
+  ll <- -sum(loco$tag*log(g(z)) + (1-loco$tag)*log(1-G(z)))
+  # ll <- -sum(log(g(z)))
+  return(ll)
+}
+gumble.rslt <- optim(par=c(mu.hat, sigma.hat), gumble.mle, hessian=TRUE)
+gumble.2p <- 2*length(gumble.rslt$par) # p = number of parameters
+gumble.ll <- round(-2*(-gumble.rslt$value[1]),4) 
+gumble.AIC <- gumble.ll + gumble.2p
+gumble.mu <- gumble.rslt$par[1]
+gumble.sigma <- gumble.rslt$par[2]
+
+# Normal
+mu.hat <- summary(lm(miles ~ norm_x, data = loco_c))$coef[1]
+sigma.hat <- summary(lm(miles ~ norm_x, data = loco_c))$coef[2]
+
+normal.mle <- function(par){
+  G <- function() {
+    return(pnorm(loco$miles, par[1], par[2]))
+  }
+  g <- function() { # pdf function of gompertz
+    return(dnorm(loco$miles, par[1], par[2]))
+  }
+  ll <- -sum(loco$tag*log(g()) + (1-loco$tag)*log(1-G()))
+  return(ll)
+  # ll <- -sum(log(dnorm(loco$miles, par[1], par[2])))
+}
+normal.rslt <- optim(par=c(mu.hat, sigma.hat), normal.mle)
+normal.2p <- 2*length(normal.rslt$par) # p = number of parameters
+normal.ll <- round(-2*(-normal.rslt$value[1]),4) 
+normal.AIC <- normal.ll + normal.2p
+normal.mu <- normal.rslt$par[1]
+normal.sigma <- normal.rslt$par[2]
+
+df <- data.frame(model = c("2-weibull", "3-weibull", "log-normal", "gompertz", "gumbel", "normal"),
+                 a = c("x", round(weibull3.a,4), "x", "x", "x", "x"),
+                 mu = c(weibull2.mu, weibull3.mu, lognorm.mu, gompertz.mu, gumble.mu, normal.mu),
+                 sigma = c(weibull2.sigma, weibull3.sigma, lognorm.sigma, gompertz.sigma, gumble.sigma, normal.sigma),
+                 minums.two.ll = c(weibull2.ll, weibull3.ll, lognorm.ll, gompertz.ll, gumble.ll, normal.ll),
+                 two.p = c(weibull2.2p, weibull3.2p, lognorm.2p, gompertz.2p, gumble.2p, normal.2p),
+                 AIC = c(weibull2.AIC, weibull3.AIC, lognorm.AIC, gompertz.AIC, gumble.AIC, normal.AIC))
+kable(df) %>% kable_styling(full_width=F)
+```
+
+##### d. G1 = log-normal, G2 = 2-parameter weibull
+```{r}
+T <- c(150000, 200000, 300000)
+z <- (log(T)-weibull2.mu)/weibull2.sigma
+
+df <- data.frame(miles=T,
+                 lognorm.model = 1 - plnorm(T, lognorm.mu, lognorm.sigma),
+                 weibull2.sigma = 1 - (1 - exp(-exp(z))))
+kable(df) %>% kable_styling(full_width=F)
+```
+
+##### e.
+```{r}
+V1 <- solve(weibull2.rslt$hessian) # Variance-Covariance Matrix 
+(se1 <- sqrt(diag(V1))) # Standard Error
+b1 <- weibull2.rslt$par
+
+df <- data.frame(parameter = c("mu", "sigma", "mu", "sigma", "mu", "sigma"), estimate = c(round(b1[1],4), round(b1[2],4), 12.1194, 0.4289, 12.1194, 0.4289),lwr = c(round(b1[1]-1.96*se1[1],4), round(b1[2]-1.96*se1[2],4), 11.9319, 0.2834, 11.9868, 0.3261), upr = c(round(b1[1]+1.96*se1[1],4), round(b1[2]+1.96*se1[2],4), 12.3069, 0.5744, 12.2520, 0.5318))
+
+kable(df) %>% kable_styling(full_width=F) %>% pack_rows("R optim", 1,2) %>% pack_rows("Excel Solver 방법1", 3,4) %>% pack_rows("Excel Solver 방법2", 5,6)  %>% add_header_above(c(" "=2, "95% Confidence Interval" = 2)) %>% add_footnote(c("Excel의 해찾기는 R의 optim으로 mle 함수를 구현하는 것보다 상대적으로 간단하다.", "그러나 Excel에서 신뢰구간을 구하기 위해서는 loglikelihood 함수를 추정해야 하므로 상대적으로 복잡하다.", "추정치는 비슷하나 신뢰구간은 방법에 따라 다를 수 있다."), notation="number")
+```
+
+### PART 3. Stature-Long bones data
+#### 유골의 팔다리뼈 길이를 이용한 키 추정
+##### a & b.
+```{r}
+fadb <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW5/FADB.csv")
+library(leaps)
+F <- fadb[fadb$Gender==0, ]
+F_X <- F[,-c(1,2)]
+F_Y <- F[,2]
+
+reg.F <- regsubsets(Stature ~ Humerus + Radius + Ulna + Femur + Tibia + Fibula, data=F)
+
+a.F <- summary(reg.F)$which; a.F <- a.F[,-1]
+AIC.F <- data.frame(p = c(1:6), aic = c(1:6))
+for(i in 1:6) {
+  lm.fit <- lm(F_Y ~., data=F_X[a.F[i,]])
+  AIC.F$aic[i] <- AIC(lm.fit)
+}
+plot(aic~p, data=AIC.F, type="b", main="Minimum AIC for each p")
+
+# p = 3일 때 AIC 최소
+lm.fit <- lm(F_Y ~., data=F_X[a.F[3,]])
+df <- data.frame(p = 3, aic = AIC.F$aic[3])
+kable(df) %>% kable_styling(full_width=F) %>% add_footnote(c(paste("Stature = ", round(lm.fit$coef[1],4), 
+                                                                   " + ", round(lm.fit$coef[2],4), "*Humerus", 
+                                                                   " + ", round(lm.fit$coef[3],4), "*Radius",
+                                                                   " + ", round(lm.fit$coef[4],4), "*Femur",
+                                                                   sep="")), notation="number")
+```
+
+##### c.
+```{r}
+new <- data.frame(Humerus = 324, Radius = 245, Tibia = 372)
+lm.fit <- lm(F_Y ~ Humerus + Radius + Tibia, data=F_X)
+new.pred <- predict(lm.fit, new, interval = "predict", levels = 0.95)
+df <- as.data.frame(new.pred)
+kable(df) %>% kable_styling(full_width=F) %>% add_footnote(c("True Y = 172.72cm", "Prediction Interval에 172.72를 포함하므로 유골의 주인공이 Amelia Earhart일 가능성이 높다."), notation="number")
+```
+
+##### d.
+```{r}
+M <- fadb[fadb$Gender==1, ]
+M_X <- M[,-c(1,2)]
+M_Y <- M[,2]
+
+reg.M <- regsubsets(Stature ~ Humerus + Radius + Ulna + Femur + Tibia + Fibula, data=M)
+
+a.M <- summary(reg.M)$which; a.M <- a.M[,-1]
+AIC.M <- data.frame(p = c(1:6), aic = c(1:6))
+for(i in 1:6) {
+  lm.fit <- lm(M_Y ~., data=M_X[a.M[i,]])
+  AIC.M$aic[i] <- AIC(lm.fit)
+}
+plot(aic~p, data=AIC.M, type="b", main="Minimum AIC for each p")
+
+# p = 2일 때 AIC 최소
+lm.fit <- lm(M_Y ~., data=M_X[a.M[2,]])
+df <- data.frame(p = 3, aic = AIC.M$aic[3])
+kable(df) %>% kable_styling(full_width=F) %>% 
+  add_footnote(c(paste("Stature = ", round(lm.fit$coef[1],4), 
+                       " + ", round(lm.fit$coef[2],4), "*Femur", 
+                       " + ", round(lm.fit$coef[3],4), "*Fibula", sep="")), notation="number")
+
+```
+Femur(대퇴골)은 키 모집단의 평균을 예측하는데 두 성별 모두에게 중요한 변수
+여자의 경우 남자와 달리 Radius(요골)와 Humerus(상완골)가 중요한 변수
+남자의 경우 여자와 달리 Fibula(비골) 중요한 변수
+
+##### e.
+```{r}
+X <- fadb[,-2]
+Y <- fadb[,2]
+X2 <- data.frame("Gender:Humerus" = fadb$Gender*fadb$Humerus,
+                 "Gender:Radius" = fadb$Gender*fadb$Radius,
+                 "Gender:Ulna" = fadb$Gender*fadb$Ulna,
+                 "Gender:Femur" = fadb$Gender*fadb$Femur,
+                 "Gender:Tibia" = fadb$Gender*fadb$Tibia,
+                 "Gender:Fibula" = fadb$Gender*fadb$Fibula)
+X <- cbind(X,X2)
+
+reg <- regsubsets(Stature ~ . + Gender*., data=fadb, nbest=1, nvmax=NULL, intercept=TRUE, method = "exhaustive")
+
+a <- summary(reg)$which; a <- a[,-1]
+colnames(a) <- c("Gender", "Humerus", "Radius", "Ulna", "Femur", "Tibia", "Fibula", "Gender.Humerus", "Gender.Radius", "Gender.Ulna", "Gender.Femur", "Gender.Tibia", "Gender.Fibula")
+
+AIC <- data.frame(p = c(1:13), aic = c(1:13))
+for(i in 1:13) {
+  lm.fit <- lm(Y ~., data=X[a[i,]])
+  AIC$aic[i] <- AIC(lm.fit)
+}
+plot(aic~p, data=AIC, type="b", main="Minimum AIC for each p")
+
+# p = 3일 때 AIC 최소
+lm.fit <- lm(Y ~., data=X[a[3,]])
+df <- data.frame(p = 3, aic = AIC$aic[3])
+kable(df) %>% kable_styling(full_width=F) %>% add_footnote(c(paste("Stature = ", round(lm.fit$coef[1],4), 
+                                                                   " + ", round(lm.fit$coef[2],4), "*Femur",
+                                                                   " + ", round(lm.fit$coef[3],4), "*Gender.Femur",
+                                                                   " + ", round(lm.fit$coef[4],4), "*Gender.Fibula",
+                                                                   sep="")), notation="number")
+```
+앞에서 확인한대로 남녀 상관없이 키 모집단 예측에 도움이 되는 Femeur(대퇴골)과 남녀에 각각 관련있는 Gender.Femur(대퇴골), Gender.Fibula(비골)이 중요변수로 선택된다.

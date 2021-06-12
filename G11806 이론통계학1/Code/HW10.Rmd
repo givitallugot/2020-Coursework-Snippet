@@ -1,0 +1,202 @@
+---
+title: "HW10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+library(readxl)
+library(MASS)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(MASS)
+```
+
+
+
+# Part 1. 흡연과 폐암, Poisson GLM
+```{r}
+lung <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW10/lungcancer-yieldcurve.xlsx', sheet=1)
+lung$lnyb <- lung$Lung/lung$Pop; lung$a <- 37 + 5*lung$Age; lung$lna <- log(lung$a)
+
+# a.
+par(mfrow=c(2,2))
+plot(lnyb ~ a, data=lung, main = "scattor plot of (lny.bar, a)")
+plot(lnyb ~ lna, data=lung, main = "Scattor plot of (lny.bar, lna)")
+plot(lnyb ~ Smoke, data=lung, main = "Scattor plot of (lny.bar, a)")
+
+# 나이와 폐암 사망률은 연관이 있다. (나이 증가, 폐암 사망 증가)
+# 나이에 log를 취해도 여전히 폐암 사망률과 곡선 효과가 존재한다.
+# 담배와 폐암 사망률은 연관이 없어 보인다.
+
+# b.
+# H1 인구, 실제 나이대 a에 log 취한값, 흡연 정도
+# H2 인구, 나이대 지시변수, 흡연 정도
+H1 <- glm(Lung ~ log(Pop) + lna + factor(Smoke), data = lung, family="poisson")
+summary(H1) # AIC 279.42
+
+H2 <- glm(Lung ~ log(Pop) + factor(Age) + factor(Smoke), data = lung, family="poisson")
+summary(H2) # AIC 282.4
+
+# AIC가 더 작은 H1 모델이 더 적절, 지시변수 보다 실제 나이대를 연속형 변수로 넣는게 나음 (일단 변수가 줄어들어 모형의 간결성)
+
+# c.
+# H3: B1 = 1 <=> B3 = e^0 즉 계수가 0인지, 한 단위 증가해도 1배 증가 (즉 똑같다는 것)
+H3 <- glm(Lung ~ offset(log(Pop)) + lna + factor(Smoke), data = lung, family="poisson")
+summary(H3) # AIC 278.25
+
+anova(H3, H1, test="LRT")
+# p-value > 0.05 => Do not reject H0 => Population 변수는 모델에서 제거해도 ok.
+
+# d.
+r <- resid(H3, "pearson")
+(X2 <- sum(r^2)) # Pearson
+
+d <-resid(H3, "deviance")
+(D <- sum(d^2)) # deviance
+
+par(mfrow=c(1,1))
+qqnorm(r, main = "Normal Probability plot: Model 3", ylab="Pearson residual", cex.main = 0.9)
+qqline(r, col="red", lwd=1)
+# normal Q-Q plot이 직선 모양 만족
+
+pchisq(D, 36-5, lower.tail = FALSE) # 36 - obs. 5 - # of parameters
+# > 0.05 => 현재 모형을 Reject 하지 않음, 적절함
+
+# e.
+H4 <- glm(Lung ~ offset(log(Pop)) + lna + factor(Smoke) + lna:factor(Smoke), data = lung, family="poisson")
+H4.step <- step(H4, direction = "backward")
+summary(H4.step) # 최적 Poisson GLM
+# 교호작용 항은 유의하지 않음
+# 실제 log 나이대와 흡연 여부는 폐암 사망률에 영향을 미친다.
+
+# f.
+H5 <- glm(cbind(Lung, Pop-Lung) ~ lna + factor(Smoke), data = lung, family=binomial(link="logit"))
+summary(H5)
+# n이 크고 p가 작을 때 이항분포가 포아송 분포로 근사된다.
+# 현재는 Population은 크고 폐암 환자는 상대적으로 많지 않기 때문에 Poisson Link가 더 적절하다. AIC 또한 Poisson Link가 더 낮아서 적절하다.
+
+```
+
+
+
+# Part 2. Gamma GLM을 이용한 Yield-Density Curve 추정
+```{r}
+barley <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW10/lungcancer-yieldcurve.xlsx', sheet=2)
+colnames(barley) <- c('Pot', 'x', 'Block', 'z', 'y')
+
+# a.
+par(mfrow=c(2,2))
+plot(y ~ x, data = barley, main = "Scattor Plot of (x, y)")
+plot(y/x ~ x, data = barley, main = "Scattor Plot of (x, y/x)")
+plot(x/y ~ x, data = barley, main = "Scattor Plot of (x, x/y)")
+# x/y와 x의 산점도가 직선, linear 모델로 fitting 가능
+par(mfrow=c(1,1))
+
+# b. 
+M1 <- glm(y ~ I(1/x), family = Gamma(link = "inverse"), data=barley)
+summary(M1)
+alpha <- gamma.shape(M1)[1]; par.hat <- c(alpha, M1$coef)
+se <- c(gamma.shape(M1)[2], summary(M1)$coef[1:2,2])
+z0.95 <- qnorm(.975, 0,1)
+
+
+df <- data.frame(estimate = as.numeric(par.hat),
+                 L = as.numeric(par.hat) - z0.95*as.numeric(se),
+                 U = as.numeric(par.hat) + z0.95*as.numeric(se))
+df <- round(df,4)
+kable(df) %>% kable_styling(full_width=F) # alpha, beta0, beta1
+
+# c)
+ggplot(barley, aes(x, y)) + geom_point() + geom_line(aes(y=M1$fitted.values), col='red') +
+  theme_bw() + labs(title = "Scatter Plot of (x, y) and Fitted Regression") + theme(plot.title = element_text(hjust = 0.5))
+
+# d)
+M2 <- glm(y ~ I(1/x) + factor(Block) + x, family = Gamma(link = "inverse"), data=barley)
+M2.step <- step(M2, direction = "backward", trace=FALSE)
+summary(M2.step)
+
+# 모수 추정값과 신뢰구간은 c와 같음
+
+# e. 보리 생산량은 보리 씨앗을 많이 뿌릴수록 더 높아진다. 그리고 둘 사이의 관계에는 곡선 효과가 존재한다.
+
+# f. 
+plot(z/x ~ x, data = barley, main = "Scattor Plot of (x, z/x)")
+# 파종한 씨앗의 수가 많을 수록 열매를 맺는 씨앗의 수가 줄어든다. 이는 씨앗에 가는 영양분을 여러 씨앗이 나누는 것보다 올인하는게 더 낫다고 생각할 수 있겠다.
+
+# g. 
+G1.x <- glm(cbind(z, x-z) ~ x + factor(Block) + factor(Block):x, data=barley, family = binomial(link = 'probit'))
+G1.lnx <- glm(cbind(z, x-z) ~ log(x) + factor(Block) + factor(Block):log(x), data=barley, family = binomial(link = 'probit'))
+G1.barx <- glm(cbind(z, x-z) ~ I(1/x) + factor(Block) + factor(Block):I(1/x), data=barley, family = binomial(link = 'probit'))
+G1.x <- step(G1.x, direction = "backward", trace=FALSE)
+G1.lnx <- step(G1.lnx, direction = "backward", trace=FALSE)
+G1.barx <- step(G1.barx, direction = "backward", trace=FALSE)
+summary(G1.x)$aic
+summary(G1.lnx)$aic # 후보 1
+summary(G1.barx)$aic
+
+G2.x <- glm(cbind(z, x-z) ~ x + factor(Block) + factor(Block):x, data=barley, family = binomial(link = 'logit'))
+G2.lnx <- glm(cbind(z, x-z) ~ log(x) + factor(Block) + factor(Block):log(x), data=barley, family = binomial(link = 'logit'))
+G2.barx <- glm(cbind(z, x-z) ~ I(1/x) + factor(Block) + factor(Block):I(1/x), data=barley, family = binomial(link = 'logit'))
+G2.x <- step(G2.x, direction = "backward", trace=FALSE)
+G2.lnx <- step(G2.lnx, direction = "backward", trace=FALSE)
+G2.barx <- step(G2.barx, direction = "backward", trace=FALSE)
+summary(G2.x)$aic
+summary(G2.lnx)$aic
+summary(G2.barx)$aic  # 후보 2
+
+G3.x <- glm(cbind(z, x-z) ~ x + factor(Block) + factor(Block):x, data=barley, family = binomial(link = 'cloglog'))
+G3.lnx <- glm(cbind(z, x-z) ~ log(x) + factor(Block) + factor(Block):log(x), data=barley, family = binomial(link = 'cloglog'))
+G3.barx <- glm(cbind(z, x-z) ~ I(1/x) + factor(Block) + factor(Block):I(1/x), data=barley, family = binomial(link = 'cloglog'))
+G3.x <- step(G3.x, direction = "backward", trace=FALSE)
+G3.lnx <- step(G3.lnx, direction = "backward", trace=FALSE)
+G3.barx <- step(G3.barx, direction = "backward", trace=FALSE)
+summary(G3.x)$aic
+summary(G3.lnx)$aic # 후보 3
+summary(G3.barx)$aic  
+
+summary(G3.lnx) # 최종 모형
+
+# h)
+# 최종적으로 추정된 모형에 따르면 다른 변수가 고정일 때 뿌린 씨앗의 log값이 한 단위 증가할 경우 열매의 양이 -1.2만큼 감소한다.
+# AIC 기준으로 선택된 모형에서 Block 마다도 차이가 있는 것을 확인할 수 있으며 Block과 씨앗 수의 교호작용 또한 열매의 양에 영향을 미치는 것을 확인할 수 있다.
+```
+
+# Part 3. Competition Experiment - Logistic GLM
+```{r}
+carinsca <- read.table("C:/USER/grad/2020-1/G11806 이론통계학1/HW10/carinsca.txt",header=T)
+carinsca$Merit <- ordered(carinsca$Merit)
+carinsca$Class <- as.factor(carinsca$Class)
+
+# a) 개인별 연간 사고 횟수
+poisson.fit1 <- glm(Claims/Insured ~ Merit + Class, family="poisson", data=carinsca, weights=Insured)
+tapply(residuals(poisson.fit1),list(carinsca$Merit, carinsca$Class),mean)
+
+poisson.fit2 <- glm(Claims ~ offset(log(Insured)) + Merit + Class + Merit:Class, family="poisson",data=carinsca)
+# 사고 건수는 인구수에 비례할 것, log(Insured)를 offset으로 지정하여 개인별 연간 사고 모델을 만들 수 있다.
+summary(poisson.fit2)
+
+# b) 사고 1건당 보험금
+gamma.fit <- glm(Cost/Claims ~ Merit + Class, family = Gamma(link = "log"), data=carinsca, weights = Claims)
+summary(gamma.fit)
+
+# c)
+carinsca$pois.hat <- predict(poisson.fit2, type="response")
+carinsca$gam.hat <- predict(gamma.fit, type="response")
+carinsca$rate <- carinsca$pois.hat * carinsca$gam.hat # new.Cost
+df <- unique(carinsca[,c(1,2,9)])
+
+kable(df) %>% kable_styling(full_width=F) # rate표
+
+# d)
+alpha <- as.numeric(gamma.shape(gamma.fit)[1])
+mu <- sqrt(gamma.fit$res^2*alpha)
+
+carinsca$lambda <- carinsca$pois.hat/carinsca$Insured
+
+plot(mu ~ lambda, data=carinsca, ylab="mu")
+abline(lm(mu ~ lambda, data=carinsca), col='red')
+summary(lm(mu ~ lambda, data=carinsca))
+```
+

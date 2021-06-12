@@ -1,0 +1,178 @@
+---
+title: "HW3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 5)
+```
+
+### 4.2
+```{r}
+# a.
+B1 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW2/data-table-B1.csv", header=T)
+lm.fit <- lm(y ~ x2 + x7 + x8, B1)
+summary(lm.fit)
+
+qqnorm(lm.fit$residuals, main = "Normal Probability plot of Residuals")
+qqline(lm.fit$residuals, col="red", lwd=1)
+
+# b.
+plot(lm.fit$fitted.values, lm.fit$residual, main = "Residial vs Yhat")
+
+# studentized residual = MASS::stdres(),
+# studentized deleted residaul = MASS::studres())
+
+# c.
+par(mfrow=c(2, 2))
+plot(B1$x2, lm.fit$residual, main = "Regressor X2 vs Yhat", cex.main=1)
+plot(B1$x7, lm.fit$residual, main = "Regressor X7 vs Yhat", cex.main=1)
+plot(B1$x8, lm.fit$residual, main = "Regressor X8 vs Yhat", cex.main=1)
+par(mfrow=c(1, 1))
+
+# d.
+library(car)
+avPlots(lm.fit)
+
+# e.
+library(MASS)
+stdres(lm.fit) # studentized residual
+
+rstudent(lm.fit) # R-studentized residual (<= externally studentized residuals)
+
+par(mfrow=c(1, 2))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of ri", cex.main=1)
+qqline(stdres(lm.fit), col="red", lwd=1)
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main=1)
+# 정규성 및 등분산성 만족하는 것으로 보임
+
+par(mfrow=c(2, 2))
+plot(B1$x2, rstudent(lm.fit), main = "Regressor X2 vs Yhat", cex.main=1)
+plot(B1$x7, rstudent(lm.fit), main = "Regressor X7 vs Yhat", cex.main=1)
+plot(B1$x8, rstudent(lm.fit), main = "Regressor X8 vs Yhat", cex.main=1)
+# Outlier 존재한다고 보기 어려움, X7은 여전히 커질수록 잔차 분산이 커지는 것으로 보여 X7 변환이 필요한지 검토할 필요 존재.
+```
+
+### 4.4
+```{r}
+B3 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW3/data-table-B3.csv", header=T)
+
+# a.
+lm.fit <- lm(y ~ x1 + x6, B3)
+summary(lm.fit)
+par(mfrow=c(1, 1))
+qqnorm(lm.fit$residuals, main = "Normal Probability plot of Residuals", ylab="residual")
+qqline(lm.fit$residuals, col="red", lwd=1)
+
+# b.
+plot(lm.fit$fitted.values, lm.fit$residual, main = "Residial vs Yhat")
+
+# c.
+avPlots(lm.fit)
+
+# d.
+library(MASS)
+stdres(lm.fit) # studentized residual
+
+rstudent(lm.fit) # R-studentized residual (<= externally studentized residuals)
+
+par(mfrow=c(1, 2))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of ri", ylab="studentized residual", cex.main=1)
+qqline(stdres(lm.fit), col="red", lwd=1)
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main=1)
+# 정규성 및 등분산성 만족하는 것으로 보임
+
+plot(B3$x1, rstudent(lm.fit), main = "Regressor X1 vs Yhat", cex.main=1)
+plot(B3$x6, rstudent(lm.fit), main = "Regressor X6 vs Yhat", cex.main=1)
+# 12, 15번째 관측치가 약간 패턴에서 벗어나긴 하지만 Outlier 존재한다고 보기 어려움, X6은 범주형 변수로 fitting할 필요가 있음.
+par(mfrow=c(1, 1))
+```
+
+### 4.5
+```{r}
+B4 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW2/data-table-B4.csv", header=T)
+
+# a.
+lm.fit <- lm(y ~ ., B4)
+summary(lm.fit)
+par(mfrow=c(1, 1))
+qqnorm(lm.fit$residuals, main = "Normal Probability plot of Residuals", ylab="residual")
+qqline(lm.fit$residuals, col="red", lwd=1)
+
+# b.
+plot(lm.fit$fitted.values, lm.fit$residual, main = "Residial vs Yhat")
+
+# c.
+avPlots(lm.fit)
+
+# d.
+library(MASS)
+stdres(lm.fit) # studentized residual
+
+rstudent(lm.fit) # R-studentized residual (<= externally studentized residuals)
+# 16, 21번째 관측치가 큰 값을 가져 약간 패턴에서 벗어나긴 하지만 Outlier 존재한다고 보기 어려움, X6은 범주형 변수로 fitting할 필요가 있음.
+
+par(mfrow=c(1, 2))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of ri", ylab="studentized residual", cex.main=1)
+qqline(stdres(lm.fit), col="red", lwd=1)
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main=1)
+# 정규성 및 등분산성 만족하는 것으로 보임
+
+par(mfrow=c(1, 1))
+```
+
+### 4.19
+```{r}
+P4.19 <- data.frame(y = c(102, 120, 117, 198, 103, 132, 132, 139, 133, 133, 140, 142, 145, 142),
+                    x1 = c(-1, 1, -1, 1, -1, 1, -1, 1, 0, 0, 0, 0, 0, 0),
+                    x2 = c(-1, -1, 1, 1, -1, -1, 1, 1, 0, 0, 0, 0, 0, 0),
+                    x3 = c(1, -1, -1, 1, -1, 1, 1, -1, 0, 0, 0, 0, 0, 0),
+                    f = c(1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0))
+
+# a.
+lm.fit <- lm(y ~ .-f, P4.19)
+summary(lm.fit)
+par(mfrow=c(1, 1))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual")
+qqline(stdres(lm.fit), col="red", lwd=1)
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Sudentized Residial vs Yhat")
+
+par(mfrow=c(2, 2))
+plot(P4.19$x1, rstudent(lm.fit), main = "Regressor X1 vs Yhat")
+plot(P4.19$x2, rstudent(lm.fit), main = "Regressor X2 vs Yhat")
+plot(P4.19$x3, rstudent(lm.fit), main = "Regressor X3 vs Yhat")
+
+avPlots(lm.fit)
+
+# b.
+reduced.fit <- lm(y ~ .-f, P4.19)
+full.fit <- lm(y ~ factor(f), P4.19)
+anova(reduced.fit,full.fit)
+```
+
+### 4.20
+```{r}
+P4.20 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW3/data-prob-4-20.csv", header=T)
+
+# a.
+lm.fit <- lm(y ~ ., P4.20)
+summary(lm.fit)
+par(mfrow=c(1, 1))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual")
+qqline(stdres(lm.fit), col="red", lwd=1)
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Sudentized Residial vs Yhat")
+
+par(mfrow=c(3, 2))
+plot(P4.20$acid.temp, rstudent(lm.fit), main = "Regressor acid.temp vs Yhat")
+plot(P4.20$acid.conc, rstudent(lm.fit), main = "Regressor acid.conc vs Yhat")
+plot(P4.20$water.temp, rstudent(lm.fit), main = "Regressor water.temp vs Yhat")
+plot(P4.20$sulf.conc, rstudent(lm.fit), main = "Regressor sulf.conc vs Yhat")
+plot(P4.20$amt.bl., rstudent(lm.fit), main = "Regressor amt.bl vs Yhat")
+
+avPlots(lm.fit)
+
+# alr3, pureErrorAnova 함수 이용 가능
+```
+

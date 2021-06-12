@@ -1,0 +1,372 @@
+---
+title: "HW6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+library(knitr)
+library(kableExtra)
+```
+
+### PART 1.
+##### a.
+```{r}
+bkrp <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW6/Haskins-Default-100.csv", header=T)
+bkrp <- bkrp[,-c(1,3)]
+
+# AIC 기준으로 Backward Elimination (Stepwise)
+Y <- bkrp$Y
+X <- bkrp[,-1]
+AIC <- data.frame(p = c(24:0), aic=c(24:0))
+del <- c()
+for(i in 24:0) {
+  if(i == 24){
+    glm.fit <- summary(glm(Y~., data=X, family=binomial(link=logit)))
+    AIC$aic[25-i] <- glm.fit$aic
+    del[25-i] <- as.numeric(which.min(abs(glm.fit$coef[-1,1])/(glm.fit$coef[-1,2])))
+  }
+  else if(i == 0) {
+    glm.fit <- summary((glm(Y~1, family=binomial(link=logit))))
+    AIC$aic[25-i] <- glm.fit$aic
+  }
+  else {
+    X <- as.data.frame(X[, -del[24-i]])
+    glm.fit <- summary(glm(Y~., data=X, family=binomial(link=logit)))
+    AIC$aic[25-i] <- glm.fit$aic
+    del[25-i] <- as.numeric(which.min(abs(glm.fit$coef[-1,1])/(glm.fit$coef[-1,2])))
+  }
+}
+plot(aic~p, AIC, type="b", main="AIC of Backward Elimination, criteria=|Bhat|/se")
+
+X <- bkrp[,-1] # p(설명변수 개수) = 5일 때까지 제거
+for(j in 1:19){
+  X <- X[,-del[j]]
+}
+glm.fit <- glm(Y~., data=X, family=binomial(link=logit))
+summary(glm.fit) # AIC 106.87
+coef <- round(glm.fit$coef,4)
+```
+
+##### b.
+```{r}
+paste("Logistic: ","log(p/1-p) = ", coef[1], " + ",  coef[2], "*R5", " + ",  coef[3], "*R6", " + ",  coef[4], "*R16", " + ",  coef[5], "*R18", " + ",  coef[6], "*R22, AIC = ", round(glm.fit$aic,4), sep="")
+paste("Hp*: yi ~ BN(1, pi(B))","pi(B) = ", "1 / ( 1 + exp(", coef[1], " + ",  coef[2], "*R5", " + ",  coef[3], "*R6", " + ",  coef[4], "*R16", " + ",  coef[5], "*R18", " + ",  coef[6], " )", sep="")
+paste("2년 후 기업의 생존확률 = pi2(yi=1) = Combination(2,2)*pi(B)^2*(1-pi(B))^0 = pi(B)^2")
+```
+
+##### c.
+```{r}
+Xc <- bkrp[, -c(6,7,17,19,23)]
+glm.fit.c <- glm(Y~., data=Xc, family=binomial(link=logit))
+1-pchisq(glm.fit.c$null.deviance-glm.fit.c$deviance, df=19)
+# < 0.05 => Reject H0, 적어도 하나의 변수는 부도를 설명하는데 도움이 됨.
+
+# library(DescTools)
+# GTest(glm.fit)
+```
+
+##### d.
+```{r}
+pairs(X, col=(bkrp$Y+2), pch=ifelse(bkrp$Y==0,3,1), lower.panel = NULL) # red = '부도', green = '정상'
+Yhat <- data.frame(y = ifelse(Y==0, "부도", "정상"), Y = Y, yhat = predict(glm.fit, X, type="link"), pi = predict(glm.fit, X, type="response"))
+
+library(ggplot2)
+p1 <- ggplot(Yhat, aes(y,yhat)) + geom_boxplot(aes(col=y)) + labs(title = "Box plot of Z")  + theme_bw() + theme(legend.position = "none", plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
+p2 <- ggplot(Yhat, aes(yhat)) + geom_density(aes(fill=y, alpha=0.2)) + labs(title = "Kernel Density Plot of Z") + theme_bw() + theme(legend.position = "none", plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
+
+q1 <- ggplot(Yhat, aes(y,pi)) + geom_boxplot(aes(col=y)) + labs(title = "Box plot of pi")  + theme_bw() + theme(legend.position = "none", plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
+q2 <- ggplot(Yhat, aes(pi)) + geom_density(aes(fill=y, alpha=0.2)) + labs(title = "Kernel Density Plot of pi") + theme_bw() + theme(legend.position = "none", plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
+
+library(gridExtra)
+grid.arrange(p1, p2, q1, q2, ncol=2)
+```
+
+##### e.
+```{r}
+logit.mle <- function(par){
+  z <- par[1] + par[2]*X$R5 + par[3]*X$R6 + par[4]*X$R16 + par[5]*X$R18 + par[6]*X$R22
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(Y, 1, Gz)))
+  return(ll)
+}
+logit.rslt <- optim(par=c(coef[1], coef[2], coef[3], coef[4], coef[5], coef[6]), logit.mle, hessian=TRUE)
+logit.AIC <- -2*(-logit.rslt$value[1]) + 2*2 
+# logit.rslt$hessian # Observed Fisher Information
+V <- solve(logit.rslt$hessian) # Variance-Covariance Matrix
+se <- sqrt(diag(V)) # Standard Error
+b <- logit.rslt$par # B hat
+z0.90 <- qnorm(0.95, 0, 1)
+df1 <- data.frame(Bhat = c(round(b[2],2), round(b[3],2), round(b[4],2), round(b[5],2), round(b[6],2)),
+                 lwr = c(round(b[2]-z0.90*se[2],4), round(b[3]-z0.90*se[3],4), round(b[4]-z0.90*se[4],4), round(b[5]-z0.90*se[5],4), round(b[6]-z0.90*se[6],4)), 
+                 upr = c(round(b[2]+z0.90*se[2],4), round(b[3]+z0.90*se[3],4), round(b[4]+z0.90*se[4],4), round(b[5]+z0.90*se[5],4), round(b[6]+z0.90*se[6],4)))
+library(knitr)
+library(kableExtra)
+kable(df1) %>% kable_styling(full_width=F)
+
+kable(V) %>% kable_styling(full_width=F) %>% pack_rows("Var-Cov Matrix", 1,6)
+kable(df1) %>% kable_styling(full_width=F)
+```
+
+##### f.
+```{f}
+Yhat5 <- data.frame(score = predict(glm.fit, type="response"))
+Yhat5$Yhat <- ifelse(Yhat5$score > 0.5, 1, 0)
+table(Y, Yhat5$Yhat)
+(err5 <- mean(ifelse(Y != Yhat5$Yhat, 1, 0))) # 0.12
+
+# p = 4
+Temp <- X
+X <- X[,-del[20]]
+glm.fit <- glm(Y~., data=X, family=binomial(link=logit))
+Yhat4 <- data.frame(score = predict(glm.fit, type="response"))
+Yhat4$Yhat <- ifelse(Yhat4$score > 0.5, 1, 0)
+# table(Y, Yhat4$Yhat)
+(err4 <- mean(ifelse(Y != Yhat4$Yhat, 1, 0))) # 0.13
+
+# p = 3
+X <- X[,-del[21]]
+glm.fit <- glm(Y~., data=X, family=binomial(link=logit))
+Yhat3 <- data.frame(score = predict(glm.fit, type="response"))
+Yhat3$Yhat <- ifelse(Yhat3$score > 0.5, 1, 0)
+# table(Y, Yhat3$Yhat)
+(err3 <- mean(ifelse(Y != Yhat3$Yhat, 1, 0))) # 0.16
+
+# p = 2
+X <- X[,-del[22]]
+glm.fit <- glm(Y~., data=X, family=binomial(link=logit))
+Yhat2 <- data.frame(score = predict(glm.fit, type="response"))
+Yhat2$Yhat <- ifelse(Yhat2$score > 0.5, 1, 0)
+# table(Y, Yhat2$Yhat)
+(err2 <- mean(ifelse(Y != Yhat2$Yhat, 1, 0))) # 0.17
+
+# p = 1
+X <- X[,-del[23]]
+glm.fit <- glm(Y~X, family=binomial(link=logit))
+Yhat1 <- data.frame(score = predict(glm.fit, type="response"))
+Yhat1$Yhat <- ifelse(Yhat1$score > 0.5, 1, 0)
+# table(Y, Yhat1$Yhat)
+(err1 <- mean(ifelse(Y != Yhat1$Yhat, 1, 0))) # 0.16
+
+df <- data.frame(p = c(5:1), err = c(err5, err4, err3, err2, err1))
+kable(df, caption="Miss classification Error") %>% kable_styling(full_width=F)
+# p가 줄어들수록 Miss classification Error가 증가한다.
+```
+
+### Part 2. 추가문제
+##### 1). Profile log-likelihood C.I.
+```{r}
+X <- bkrp[, c(6,7,17,19,23)]
+glm.fit <- glm(Y~., data=X, family=binomial(link=logit))
+profile.beta.ci <- confint(glm.fit, level=0.90)
+
+df2 <- data.frame(Bhat = c(round(glm.fit$coef[2],2), round(glm.fit$coef[3],2), round(glm.fit$coef[4],2), round(glm.fit$coef[5],2), round(glm.fit$coef[6],2)),
+                  lwr = c(round(profile.beta.ci[2],4), round(profile.beta.ci[3],4), round(profile.beta.ci[4],4), round(profile.beta.ci[5],4), round(profile.beta.ci[6],4)), 
+                  upr = c(round(profile.beta.ci[8],4), round(profile.beta.ci[9],4), round(profile.beta.ci[10],4), round(profile.beta.ci[11],4), round(profile.beta.ci[12],4)))
+kable(df2) %>% kable_styling(full_width=F)
+
+par(mfrow=c(3, 2))
+# To compute Profile log-likelihood function,
+k <- 500; b5 <- seq(10, 46, length = k); l5 <- rep(0, k)
+for(i in 1:k) { # For B5
+  m5 <- glm(Y~R6+R16+R18+R22, data=X, offset = b5[i]*R5, family=binomial(link=logit))
+  l5[i] <- logLik(m5)
+}
+plot(b5, l5, type = "l", main="Profile Log-Likelihood Funtion for B5", ylab = "logL(B5hat)", xlab = "B5hat", cex.main=1, cex.axis=0.8)
+abline(h=logLik(glm.fit)-qchisq(.90,1)/2, lty=2)
+
+k <- 200; b6 <- seq(-47, -15, length = k); l6 <- rep(0, k)
+for(i in 1:k) { # For B6
+  m6 <- glm(Y~R5+R16+R18+R22, data=X, offset = b6[i]*R6, family=binomial(link=logit))
+  l6[i] <- logLik(m6)
+}
+plot(b6, l6, type = "l", main="Profile Log-Likelihood Funtion for B6", ylab = "logL(B6hat)", xlab = "B6hat", cex.main=1, cex.axis=0.8)
+abline(h=logLik(glm.fit)-qchisq(.90,1)/2, lty=2)
+
+k <- 200; b16 <- seq(-70, -15, length = k); l16 <- rep(0, k)
+for(i in 1:k) { # For B16
+  m16 <- glm(Y~R5+R6+R18+R22, data=X, offset = b16[i]*R16, family=binomial(link=logit))
+  l16[i] <- logLik(m16)
+}
+plot(b16, l16, type = "l", main="Profile Log-Likelihood Funtion for B16", ylab = "logL(B16hat)", xlab = "B16hat", cex.main=1, cex.axis=0.8)
+abline(h=logLik(glm.fit)-qchisq(.90,1)/2, lty=2)
+
+k <- 200; b18 <- seq(20, 46, length = k); l18 <- rep(0, k)
+for(i in 1:k) { # For B18
+  m18 <- glm(Y~R5+R6+R16+R22, data=X, offset = b18[i]*R18, family=binomial(link=logit))
+  l18[i] <- logLik(m18)
+}
+plot(b18, l18, type = "l", main="Profile Log-Likelihood Funtion for B18", ylab = "logL(B18hat)", xlab = "B18hat", cex.main=1, cex.axis=0.8)
+abline(h=logLik(glm.fit)-qchisq(.90,1)/2, lty=2)
+
+k <- 200; b22 <- seq(-6, 34.4, length = k); l22 <- rep(0, k)
+for(i in 1:k) { # For B22
+  m22 <- glm(Y~R5+R6+R16+R18, data=X, offset = b22[i]*R22, family=binomial(link=logit))
+  l22[i] <- logLik(m22)
+}
+plot(b22, l22, type = "l", main="Profile Log-Likelihood Funtion for B22", ylab = "logL(B22hat)", xlab = "B22hat", cex.main=1, cex.axis=0.8)
+abline(h=logLik(glm.fit)-qchisq(.90,1)/2, lty=2)
+
+par(mfrow=c(1, 1))
+# B5 - 참고용, 그림을 보고 loglik가 cutoff(loglik.f - chisq/2)와 일치하는 값을 찾는 방법, uniroot 이용
+f5 <- function(b5, x, y, maxloglik) {
+  m5 <- glm(y~R6+R16+R18+R22, data=X, offset = b5*x, family=binomial(link=logit))
+  logLik(m5) - maxloglik + qchisq(0.90, 1)/2
+}
+uniroot(f5, c(13,14), x=X$R5, y=Y, maxloglik=logLik(glm.fit))
+uniroot(f5, c(41,42), x=X$R5, y=Y, maxloglik=logLik(glm.fit))
+# 결과는 confint()와 비슷함, k를 늘릴수록 더 정확해짐
+```
+
+##### 2). Jackknife 방법
+```{r}
+n <- length(Y)
+logit.mle <- function(par, Xj, Yj){
+  z <- par[1] + par[2]*Xj$R5 + par[3]*Xj$R6 + par[4]*Xj$R16 + par[5]*Xj$R18 + par[6]*Xj$R22
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(Yj, 1, Gz)))
+  return(ll)
+}
+
+jk.beta.fn <- function(X, Y) { 
+  jk.rslt <- optim(par=c(coef[1], coef[2], coef[3], coef[4], coef[5], coef[6]), Xj = X, Yj = Y, logit.mle, hessian=TRUE)
+  return(jk.rslt$par)
+}
+
+jk.beta.hat <- matrix(rep(0,n*6), ncol=6)
+for(i in 1:n){
+  jk.beta.hat[i,] <- jk.beta.fn(X[-i,], Y[-i])
+}
+
+z0.90 <- qnorm(0.95, 0, 1)
+jk.beta.m <- colMeans(jk.beta.hat) # jk beta.hat
+jk.diff.mat <- jk.beta.hat - matrix(rep(jk.beta.m,100),ncol=6, byrow = TRUE) # beta.jk - beta.mean
+jk.varcov.m <- (n-1)/n*t(jk.diff.mat)%*%jk.diff.mat # jk var-cov matrix
+print(jk.varcov.m)
+jk.sigma <- sqrt(diag(jk.varcov.m)) # jk sigma
+
+df3 <- data.frame(Bhat = c(round(jk.beta.m[2],2), round(jk.beta.m[3],2), round(jk.beta.m[4],2), round(jk.beta.m[5],2), round(jk.beta.m[6],2)),
+                 lwr = c(round(jk.beta.m[2]-z0.90*jk.sigma[2],4), round(jk.beta.m[3]-z0.90*jk.sigma[3],4), round(jk.beta.m[4]-z0.90*jk.sigma[4],4), round(jk.beta.m[5]-z0.90*jk.sigma[5],4), round(jk.beta.m[6]-z0.90*jk.sigma[6],4)), 
+                 upr = c(round(jk.beta.m[2]+z0.90*jk.sigma[2],4), round(jk.beta.m[3]+z0.90*jk.sigma[3],4), round(jk.beta.m[4]+z0.90*jk.sigma[4],4), round(jk.beta.m[5]+z0.90*jk.sigma[5],4), round(jk.beta.m[6]+z0.90*jk.sigma[6],4)))
+library(kableExtra)
+kable(df3) %>% kable_styling(full_width=F)
+
+# For asymptotically normally distributed ML estimators, sigma(jackknife) is an asymptotically unbiased and consistent estimator for their variance.
+```
+
+##### 3). Bootstrap
+##### 3)-a. Parametric bootstrap
+```{r}
+set.seed(1234)
+
+B <- as.matrix(logit.rslt$par)
+X1 <- as.matrix(cbind(1,X))
+Z <- X1%*%B
+phat <- 1/(1+exp(-Z)) # MLE 이용
+
+BS <- matrix(rep(0, 100000), ncol=1000)
+for(i in 1:100) { # R = 1000, Make Bootstrap Sample
+  BS[i,] <- rbinom(1000, 1, phat[i])
+}
+
+logit.mle.par <- function(par, BSi){ # jk에서 사용한 똑같은 function
+  z <- par[1] + par[2]*X$R5 + par[3]*X$R6 + par[4]*X$R16 + par[5]*X$R18 + par[6]*X$R22
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(BSi, 1, Gz)))
+  return(ll)
+}
+
+boot.out.par <- matrix(rep(0,1000*6), ncol=6)
+for(r in 1:1000){
+  boot.out.par[r,] <- optim(par=c(coef[1], coef[2], coef[3], coef[4], coef[5], coef[6]), BSi = BS[,r], logit.mle.par, hessian=TRUE)$par
+}
+par.beta.m <- colMeans(boot.out.par)
+par.beta.cv <- apply(boot.out.par, 2, sd)/par.beta.m # sd(x)/mean(x)
+par.beta.bias <- par.beta.m - par.beta.cv
+
+par.beta.ci <- data.frame(lwr=c(1:6), upr=c(1:6)) # Percentile C.I. of parametric bootstrap
+for(i in 1:6) {
+  par.beta.ci$lwr[i] <- boot.out.par[rank(boot.out.par[,i]) == 51,i] #1000*0.05
+  par.beta.ci$upr[i] <- boot.out.par[rank(boot.out.par[,i]) == 950,i] #1000*0.95
+}
+
+df4 <- data.frame(Bhat = c(round(par.beta.m[2],2), round(par.beta.m[3],2), round(par.beta.m[4],2), round(par.beta.m[5],2), round(par.beta.m[6],2)),
+                 lwr = c(round(par.beta.ci[2,1],4), round(par.beta.ci[3,1],4), round(par.beta.ci[4,1],4), round(par.beta.ci[5,1],4), round(par.beta.ci[6,1],4)), 
+                 upr = c(round(par.beta.ci[2,2],4), round(par.beta.ci[3,2],4), round(par.beta.ci[4,2],4), round(par.beta.ci[5,2],4), round(par.beta.ci[6,2],4)))
+library(kableExtra)
+kable(df4) %>% kable_styling(full_width=F)
+```
+
+##### 3)-b. Non-parametric bootstrap
+```{r}
+library(boot)
+
+logit.mle.nonp <- function(par, Xi, Yi){
+  z <- par[1] + par[2]*Xi$R5 + par[3]*Xi$R6 + par[4]*Xi$R16 + par[5]*Xi$R18 + par[6]*Xi$R22
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(Yi, 1, Gz)))
+  return(ll)
+}
+
+YX <- as.data.frame(cbind(Y, X))
+nonp.beta.fn <- function(YX, i) {
+  nonp.rslt <- optim(par=c(coef[1], coef[2], coef[3], coef[4], coef[5], coef[6]), Xi = YX[i,-1], Yi = YX[i,1], logit.mle.nonp, hessian=TRUE)
+  return(nonp.rslt$par)
+}
+boot.out.nonp <- boot(data=YX, statistic = nonp.beta.fn, R=1000)
+boot.out.nonp
+# boot.ci(boot.out.nonp, conf=0.90, type="all")
+
+nonp.beta.ci <- data.frame(lwr=c(1:6), upr=c(1:6)) # Percentile C.I. of non-parametric bootstrap
+for(i in 1:6) {
+  nonp.beta.ci$lwr[i] <- boot.out.nonp$t[rank(boot.out.nonp$t[,i]) == 51,i] #1000*0.05
+  nonp.beta.ci$upr[i] <- boot.out.nonp$t[rank(boot.out.nonp$t[,i]) == 950,i] #1000*0.95
+}
+
+df5 <- data.frame(Bhat = c(round(boot.out.nonp$t0[2],2), round(boot.out.nonp$t0[3],2), round(boot.out.nonp$t0[4],2), round(boot.out.nonp$t0[5],2), round(boot.out.nonp$t0[6],2)),
+                 lwr = c(round(nonp.beta.ci[2,1],4), round(nonp.beta.ci[3,1],4), round(nonp.beta.ci[4,1],4), round(nonp.beta.ci[5,1],4), round(nonp.beta.ci[6,1],4)), 
+                 upr = c(round(nonp.beta.ci[2,2],4), round(nonp.beta.ci[3,2],4), round(nonp.beta.ci[4,2],4), round(nonp.beta.ci[5,2],4), round(nonp.beta.ci[6,2],4)))
+library(kableExtra)
+kable(df5) %>% kable_styling(full_width=F)
+
+# Compare C.Is
+df_full <- t(cbind(df1, df2, df3, df4, df5))
+kable(df_full) %>% kable_styling(full_width=F) %>% pack_rows("Maximum Likelihood 90% C.I.", 1,3) %>% pack_rows("Profile Likelihood 90% C.I.", 4,6)  %>% pack_rows("Jackknife MLE 90% C.I", 7,9)  %>% pack_rows("Parametric Bootstrap MLE 90% Percentile C.I", 10,12) %>% pack_rows("Non-Parametric Bootstrap MLE 90% Percentile C.I", 13,15)
+```
+##### n이 크지 않기 때문에 전반적으로 Bootstrap 두 방법이 앞의 세 방법에 비해 신뢰구간이 길다.
+##### 1. R optim으로 MLE와 Hessian Matrix를 이용한 C.I.이다. asymptotic normality를 따르므로 다변량 정규분포를 가정하고 신뢰구간을 구한다.
+##### 2. Beta(i)를 제외한 Beta를 고정한 후 Beta(i)를 offset으로 Profile log-likelihood 함수 - logL1(Beta(i))를 추정한다. H0를 참으로 가정할 때 asymptotic chi-square 기반의 LRT test statistic을 변형한 logL1(Beta(i)) > logL - chisq(df=1)/2를 바탕으로 곡선과 직선이 만나는 점을 찾는다. 추정할 모수 개수만큼 Profile log-L를 찾아야하므로 다소 복잡하다.
+##### 3. Leave-one-out 방법으로 MLE가 asymptotic normality를 따르므로 jackknife Var-Cov Matrix 또한 asymptotically unbiansed and consistent estimator이다. Bootstrap과 다르게 랜덤한 파트가 없다, Vor-Cov Matrix가 필요한 경우 외에 잘 사용하지 않는다.
+##### 4. Beta(ML estimator)를 이용한 Binomial Distribution을 가정하고 n-fold generation으로 Beta를 여러번 추정한 후 mean, bias, cv, sd를 구한다. Beta 추정치는 Bias가 된다. Non-parametric 방법과 다르게 데이터에서 계산한 point estimator(beta hat)만 이용한다. C.I.를 구하는 방법은 여러가지이나 그 중 percentile C.I를 이용한 결과이다. Sample size가 작으면 성능이 안좋으며, 보통 bootstrap sample 수 R은 1000 이상으로 설정한다. 랜덤하게 추출하므로 매번 조금씩 다른 결과가 도출된다.
+##### 5. 확률분포를 가정하지 않고 데이터로부터 복원추출한 bootstrap sample을 사용하여 beta를 R번 추정한 후 mean, bias, cv, sd를 구한다. Beta 추정치는 Bias가 된다. Parametric 방법과 다르게 관측된 데이터를 모두 반영한다. 마찬가지로 C.I.를 구하는 방법은 여러가지이나 그 중 percentile C.I를 이용한 결과이다. Sample size가 작으면 성능이 안좋으며, 보통 bootstrap sample 수 R은 1000 이상으로 설정한다.
+### 
+##### 4) CV Error
+```{r}
+# similar code with JK
+n <- length(Y)
+logit.mle <- function(par, Xj, Yj){
+  z <- par[1] + par[2]*Xj$R5 + par[3]*Xj$R6 + par[4]*Xj$R16 + par[5]*Xj$R18 + par[6]*Xj$R22
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(Yj, 1, Gz)))
+  return(ll)
+}
+
+CV <- data.frame(i=c(1:n), cv.err=c(1:n))
+cv.beta.fn <- function(X, Y, xi, yi) { 
+  cv.rslt <- optim(par=c(coef[1], coef[2], coef[3], coef[4], coef[5], coef[6]), Xj = X, Yj = Y, logit.mle, hessian=TRUE)
+  bi <- as.matrix(cv.rslt$par)
+  xi1 <- as.matrix(cbind(1,xi))
+  zi <- xi1%*%bi
+  yihat <- ifelse(1/(1+exp(-zi)) > 1/2, 1, 0)
+  cv.err <- ifelse(yi != yihat, 1, 0)
+  return(cv.err)
+}
+
+for(i in 1:n){
+  CV$cv.err[i] <- cv.beta.fn(X[-i,], Y[-i], X[i,], Y[i])
+}
+kable(data.frame(Error = 0.12, CV.Error = c(mean(CV$cv.err)))) %>% kable_styling(full_width=F)
+```
+##### - Miss classification Error보다 Cross Validation Error가 더 크다.
+##### - CV Error는 일종의 예측 오차로, 예측이 목적이라면 CV Error가 가장 작은 모델을 최적 모형으로 선택하는 것이 좋다.
+##### - 즉, 모델 적합에 사용하지 않은 데이터를 예측하는 것이므로 과적합을 방지하기 위해 여러 모델을 비교하는 기준으로 사용할 수 있다.

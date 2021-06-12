@@ -1,0 +1,278 @@
+---
+title: "HW11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+
+library(readxl)
+library(tidyverse)
+library(gridExtra)
+library(survival)
+library(survminer)
+library(knitr)
+library(kableExtra)
+```
+
+
+# Part 1.  Failure Times of Springs
+```{r}
+spring <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW11/Spring-Failure-Stanford-heart-Transplant.xlsx', sheet=1)
+spring <- gather(spring, 'x', 'y', 1:6)
+index <- grep('[+]', spring$y)
+spring[,3] <- 1; spring[index,3] <- 0; colnames(spring) <- c('x','y','delta')
+
+# +, S 문자 제거
+spring$y <- gsub('[+]', '', spring$y)
+spring$x <- gsub('S', '', spring$x)
+spring <- mutate(spring, x = as.numeric(x), y= as.numeric(y), delta = as.numeric(delta))
+
+# a)
+spring$lny <- log(spring$y)
+spring$lnx <- log(spring$x)
+p1 <- ggplot(data = spring) + geom_point(aes(x = x, y = lny)) + theme_bw() + labs(title = "Plot of (lny, x)") + theme(plot.title = element_text(hjust = 0.5))
+p2 <- ggplot(data = spring) + geom_point(aes(x = lnx, y = lny)) + theme_bw() + labs(title = "Plot of (lny, lnx)") + theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(p1, p2, ncol=2)
+# log stress(lnx)가 늘어날수록 spring의 log 수명 lny가 감소하는 패턴이다.
+# log stress나 stress나 산점도의 차이는 크지 않으나 log stress일 때 조금 더 선형 관계로 보인다.
+
+# b) - complete data만 이용
+spring_uc <- filter(spring, x >= 800) %>% filter(delta == 1) # stress 800이상 uncensored
+p1 <- ggplot(data = spring_uc, aes(x = x, y = y)) + geom_boxplot(aes(group = x)) + theme_bw() + labs(title = "Boxplot of (y, x)") + theme(plot.title = element_text(hjust = 0.5))
+p2 <- ggplot(data = spring_uc, aes(x = x, y = lny)) + geom_boxplot(aes(group = x)) + theme_bw() + labs(title = "Boxplot of (lny, x)") + theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(p1, p2, ncol=2)
+# x, lny의 plot이 조금 더 선형 형태. 마찬가지로 stress 수준이 증가하면 spring의 log 수명이 감소하는 패턴이다.
+
+##Q-Q plot을 위한 데이터 변환
+
+# ALL Stress
+spring_uc <- mutate(spring_uc, pr = rank(y)/(length(y)+1),
+                    norm_x = qnorm(pr),
+                    gompertz_x = log(-log(1-pr)),
+                    gumbel_x = -log(-log(pr)),
+                    exp_x = log(pr),
+                    logis_x = log(pr/(1-pr))) 
+
+spring_uc800 <- filter(spring_uc, x == 800) %>% mutate(pr = rank(y)/(length(y)+1),
+                                                       norm_x = qnorm(pr),
+                                                       gompertz_x = log(-log(1-pr)),
+                                                       gumbel_x = -log(-log(pr)),
+                                                       exp_x = log(pr),
+                                                       logis_x = log(pr/(1-pr)))
+spring_uc850 <- filter(spring_uc, x == 850) %>% mutate(pr = rank(y)/(length(y)+1),
+                                                       norm_x = qnorm(pr),
+                                                       gompertz_x = log(-log(1-pr)),
+                                                       gumbel_x = -log(-log(pr)),
+                                                       exp_x = log(pr),
+                                                       logis_x = log(pr/(1-pr)))
+spring_uc900 <- filter(spring_uc, x == 900) %>% mutate(pr = rank(y)/(length(y)+1),
+                                                       norm_x = qnorm(pr),
+                                                       gompertz_x = log(-log(1-pr)),
+                                                       gumbel_x = -log(-log(pr)),
+                                                       exp_x = log(pr),
+                                                       logis_x = log(pr/(1-pr)))
+spring_uc950 <- filter(spring_uc, x == 950) %>% mutate(pr = rank(y)/(length(y)+1),
+                                                       norm_x = qnorm(pr),
+                                                       gompertz_x = log(-log(1-pr)),
+                                                       gumbel_x = -log(-log(pr)),
+                                                       exp_x = log(pr),
+                                                       logis_x = log(pr/(1-pr)))
+
+plot.qq <- function(data){
+  norm_p <- ggplot(data, aes(x=norm_x, y=y)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Normal Distn", subtitle = paste("R.sq = ", round(summary(lm(y ~ norm_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  lognorm_p <- ggplot(data, aes(x=norm_x, y=lny)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Log-Normal Distn", subtitle = paste("R.sq = ", round(summary(lm(lny ~ norm_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  logis_p <- ggplot(data, aes(x=logis_x, y=y)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Logistic Distn", subtitle = paste("R.sq = ", round(summary(lm(y ~ logis_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  exp_p <- ggplot(data, aes(x=exp_x, y=y)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Exponential Distn", subtitle = paste("R.sq = ", round(summary(lm(y ~ exp_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  
+  gompertz_p <- ggplot(data, aes(x=gompertz_x, y=y)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Gompertz Distn", subtitle = paste("R.sq = ", round(summary(lm(y ~ gompertz_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  gumbel_p <- ggplot(data, aes(x=gumbel_x, y=y)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Gumbel Distn", subtitle = paste("R.sq = ", round(summary(lm(y ~ gumbel_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  weibull_p <- ggplot(data, aes(x=gompertz_x, y=lny)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Weibull Distn", subtitle = paste("R.sq = ", round(summary(lm(lny ~ gompertz_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  Frechet_p <- ggplot(data, aes(x=gumbel_x, y=lny)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Frechet Distn", subtitle = paste("R.sq = ", round(summary(lm(lny ~ gumbel_x, data))$r.squared,4)*100, "%", sep = "")) + theme_light()
+  
+  grid.arrange(norm_p, lognorm_p, logis_p, exp_p, gompertz_p, gumbel_p, weibull_p, Frechet_p, ncol=4)
+}
+
+plot.qq(spring_uc) # Total, Best: Frechet
+plot.qq(spring_uc800) # 800, Best: Frechet
+plot.qq(spring_uc850) # 850, Best: Weibull
+plot.qq(spring_uc900) # 900, Best: Lognormal
+plot.qq(spring_uc950) # 950, Best: Logistic
+
+summary(lm(spring_uc800$lny ~ spring_uc800$gompertz_x))
+summary(lm(spring_uc850$lny ~ spring_uc850$gumbel_x))
+summary(lm(spring_uc900$lny ~ spring_uc900$norm_x))
+summary(lm(spring_uc950$y ~ spring_uc950$logis_x))
+
+# 적절한 분포를 찾고 모수를 추정은 optim으로도 가능
+
+# c) - censored data만 이용
+par(mfrow = c(1,1))
+sur.fit <- survfit(Surv(y, delta) ~ x, spring)
+ggsurvplot(sur.fit)
+# Stress 높을 수록 수명이 짧은 것을 확인할 수 있다
+
+# lnT = Mu + sigma*lnT0 with Mu=B0 + B1*x, 여기서 B0, B1, ln(σ) 추정되는 것
+# $scale이 바로 σ (즉, 기본적으로 ln(σ)이 출력되는데 여기에 exp 취한 것)
+library(flexsurv)
+# flexsurvreg는 survreg에서 구해지고 다시 parameterization한 것일 뿐
+# fs1 <- flexsurvreg(Surv(y, delta) ~ x, data = spring, dist = 'lognormal'); fs1
+alt1 <- survreg(Surv(log(y), delta) ~ x, data = spring, dist = 'weibull') # gompertz (y=T - weibull)
+alt2 <- survreg(Surv(log(y), delta) ~ lnx, data = spring) # gompertz (y=T - weibull)
+alt3 <- survreg(Surv(y, delta) ~ x , data = spring, dist = 'lognormal') # lognormal (y=T - normal)
+alt4 <- survreg(Surv(y, delta) ~ lnx , data = spring, dist = 'lognormal') # lognormal (y=T - normal)
+alt5 <- survreg(Surv(y, delta) ~ x , data = spring, dist = 'loglogistic') # loglogistic (y=T - logistic)
+alt6 <- survreg(Surv(y, delta) ~ lnx , data = spring, dist = 'loglogistic') # loglogistic (y=T - logistic)
+# 만약 y가 gompertz 가정이라면, logy에 대해 weibull distribution (주로 이런 식으로 하였으나)
+# (이 경우에는) y를 weibull, lognormal, loglogistic으로 가정
+# 대부분 수명 분포에서 gompertz는 10-20%, weibull이 80-90%
+
+AIC(alt1) + 2*sum(spring$lny); AIC(alt2) + + 2*sum(spring$lny); AIC(alt3); AIC(alt4); AIC(alt5); AIC(alt6) 
+# log 취하면 jacobian term 취하기
+
+summary(alt4)
+# ui ~ lognormal model(T ~ normal)이 가장 좋다.
+# x도 lnx취해야 함.
+
+# d)
+alpha <- alt4$coef[1]
+beta <- alt4$coef[2]
+sigma <- summary(alt4)$scale
+
+x <- c(650, 700)
+mu <- alpha + beta*log(x)
+tp1000 <- 1 - pnorm((log(10000) - mu)/sigma)
+
+df <- data.frame(lnx = log(x),
+                 mu = mu,
+                 tP1000 = tp1000)
+df <- round(df,4)
+kable(df) %>% kable_styling(full_width=F) # alpha, beta0, beta1
+```
+
+# Part 2. Stanford heart Transplant Data
+```{r}
+heart <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW11/Spring-Failure-Stanford-heart-Transplant.xlsx', sheet=2, na="*")[,2:6]
+colnames(heart) <- c('t', 'delta', 'x1','x2','lnt')
+heart <- filter(heart, !is.na(x2))
+
+# a)
+heart$lnx1 <- log(heart$x1)
+heart$lnx2 <- log(heart$x2)
+
+p1 <- ggplot(data = heart) + geom_point(aes(x = x1, y = lnt)) + theme_bw() + labs(title = "Plot of (lny, x1)") + theme(plot.title = element_text(hjust = 0.5))
+p2 <- ggplot(data = heart) + geom_point(aes(x = lnx1, y = lnt)) + theme_bw() + labs(title = "Plot of (lny, lnx1)") + theme(plot.title = element_text(hjust = 0.5))
+grid.arrange(p1, p2, ncol=2)
+# x1 환자의 나이와 로그 생존 날짜 log T의 산점도는 랜덤한 관계로 보임
+
+p3 <- ggplot(data = heart) + geom_point(aes(x = x2, y = lnt)) + theme_bw() + labs(title = "Plot of (lny, x2)") + theme(plot.title = element_text(hjust = 0.5))
+p4 <- ggplot(data = heart) + geom_point(aes(x = lnx2, y = lnt)) + theme_bw() + labs(title = "Plot of (lny, lnx2)") + theme(plot.title = element_text(hjust = 0.5))
+grid.arrange(p3, p4, ncol=2)
+# x2 이식이 잘 맞지 않는 점수와 로그 생존 날짜 log T의 산점도는 랜덤한 관계로 보임
+
+# b)
+alt.fit <- function(data, dist){
+  alt1 <- survreg(Surv(t, delta) ~ x1 + x2 , data = data, dist = dist)
+  alt2 <- survreg(Surv(t, delta) ~ x1 + x2 + x1*x2 , data = data, dist = dist)
+  alt3 <- survreg(Surv(t, delta) ~ log(x1) + x2, data = data, dist = dist)
+  alt4 <- survreg(Surv(t, delta) ~ log(x1) + x2 + log(x1)*x2 , data = data, dist = dist)
+  alt5 <- survreg(Surv(t, delta) ~ I(1/x1) + x2 , data = data, dist = dist)
+  alt6 <- survreg(Surv(t, delta) ~ I(1/x1) + x2 + I(1/x1)*x2, data = data, dist = dist)
+  alt7 <- survreg(Surv(t, delta) ~ x1 + x2 + I(x1^2) + I(x2^2) , data = data, dist = dist)
+  
+  cbind(AIC(alt1), AIC(alt2), AIC(alt3), AIC(alt4), AIC(alt5), AIC(alt6), AIC(alt7))
+}
+alt.fit(heart, 'weibull') # 7th, 1571.092
+alt.fit(heart, 'loglogistic') # 7th, 1571.857
+alt.fit(heart, 'lognormal') # 7th, 1571.599
+# x는 log를 취하지 않음, 
+# T ~ weibull 분포를 따르는 것
+
+alt.final <- survreg(Surv(t, delta) ~ x1 + x2 + I(x1^2) + I(x2^2) , data = heart, dist = 'weibull')
+summary(alt.final)
+
+# c)
+beta <- alt.final$coef
+sigma <- alt.final$scale
+x1 <- c(50,70,50); x2 <- c(1,1,3)
+mu <- beta[1] + beta[2]*x1 + beta[3]*x2 + beta[4]*(x1^2) + beta[5]*(x2^2)
+u <- ((log(365) - mu)/sigma)
+tp365.alt <- exp(-exp(u)) # u=lnT는 gompertz를 따름
+
+df <- data.frame(x1=x1, x2=x2, tP365.alt = tp365.alt)
+df <- round(df,4)
+kable(df) %>% kable_styling(full_width=F) # alpha, beta0, beta1
+# 나이가 더 든 환자의 1년 이상 생존확률은 더 낮아진다.
+# 심장 이식 점수가 낮은(mismatch가 높은) 환자의 1년 이상 생존확률은 더 낮아진다.
+
+# 즉, 나이가 젊을수록, 이식 시 mismatch score가 낮을 수록 1년 이상 생존확률이 높아진다.
+
+# d)
+# (가) AIC를 이용한 모형선택
+cox.fit <- function(data){
+  cox1 <- coxph(Surv(t, delta) ~ x1 + x2 , data = data)
+  cox2 <- coxph(Surv(t, delta) ~ x1 + x2 + x1*x2 , data = data)
+  cox3 <- coxph(Surv(t, delta) ~ log(x1) + x2, data = data)
+  cox4 <- coxph(Surv(t, delta) ~ log(x1) + x2 + log(x1)*x2 , data = data)
+  cox5 <- coxph(Surv(t, delta) ~ I(1/x1) + x2 , data = data)
+  cox6 <- coxph(Surv(t, delta) ~ I(1/x1) + x2 + I(1/x1)*x2, data = data)
+  cox7 <- coxph(Surv(t, delta) ~ x1 + x2 + I(x1^2) + I(x2^2) , data = data)
+  
+  cbind(AIC(cox1), AIC(cox2), AIC(cox3), AIC(cox4), AIC(cox5), AIC(cox6), AIC(cox7))
+}
+cox.fit(heart) # 7th, AIC 891.2169
+
+# (나) 평균 0인 공변량 이용
+heart_c <- mutate(heart, x1_c = (x1 - mean(x1)), x2_c = (x2 - mean(x2)) )
+cox.final <- coxph(Surv(t, delta) ~ x1_c + x2_c + I(x1_c^2) + I(x2_c^2) , data = heart_c)
+summary(cox.final)
+
+ggsurvplot(survfit(cox.final), data = heart_c) # 기저누적 위험함수(baseline cummulative  hazard function) H(t)
+
+S.df <-data.frame(time = survfit(cox.final)$time, surv = survfit(cox.final)$surv, hazard = -log(survfit(cox.final)$surv))
+ggplot(S.df, aes(time, hazard)) + geom_line() + theme_bw() + labs(title = "Plot of H(t): baseline hazard function)") + theme(plot.title = element_text(hjust = 0.5))
+# S(t)는 시간이 지날수록 감소하는 형태, H(t)는 시간이 지날수록 증가하는 형태, 시간이 지날수록 H(t)는 순간 위험률(사망률)이 높아지는 것을 확인할 수 있다. 
+
+# Cox PHM: non-parametric 
+p1 <- ggplot(S.df, aes(time, log(hazard))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Gompertz Distn", subtitle = paste("R.sq = ", round(summary(lm(log(hazard)~time, S.df))$r.squared,4)*100, "%", sep = "")) + theme_light()
+p2 <- ggplot(S.df, aes(log(time), log(hazard))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Weibull Distn", subtitle = paste("R.sq = ", round(summary(lm(log(hazard)~log(time), S.df))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+grid.arrange(p1, p2, ncol=2)
+# 추정한 생존확률이 Weibull 분포 Q-Q plot에서 직선 형태로, T ~ Weibull 분포를 따른다고 볼 수 있음
+
+# (다)
+# Weibull 분포를 통해 모수 추정 
+# S(t)는 coxph함수를 통해 추정되었으나, 모수를 추정함으로서 범위 내든 밖이든 관측되지 않은 범위의 x값에 대한 추정이 가능해질 것)
+cox.wei <- lm(log(hazard) ~ log(time), data = S.df)
+summary(cox.wei)
+
+# Baseline hazard rate / survival
+alpha <- summary(cox.wei)$coef[1]; beta <- summary(cox.wei)$coef[2]
+(H365.base <- exp(alpha + beta*log(365))) # Baseline hazard rate
+(S365.base <- exp(-H365.base)) # Baseline survival
+
+cox.mu <- exp(predict(cox.final, data.frame(x1_c = c(50, 70, 50) - mean(heart$x1), x2_c = c(1, 1, 3) - mean(heart$x2)), type = 'lp'))
+tP365.cox <- S365.base^cox.mu
+
+df.new <- cbind(df, tP365.cox)
+df.new <- round(df.new, 4)
+kable(df.new) %>% kable_styling(full_width=F) # alpha, beta0, beta1
+# ALT의 결과와 마찬가지로 cox PH의 결과 또한, 
+# 나이가 더 든 환자의 1년 이상 생존확률은 더 낮아진다.
+# 심장 이식 점수가 낮은(mismatch가 높은) 환자의 1년 이상 생존확률은 더 낮아진다.
+# 즉, 나이가 젊을수록, 이식 시 mismatch score가 낮을 수록 1년 이상 생존확률이 높아진다.
+
+# e)
+# 분포를 알고 분포 추정이 간단하다면 ALT 사용 가능하며 분포 가정이 필수적이다. 그러나 coxph는 분포를 모르더라도 생존함수 S(t)를 추정 가능하다.
+beta_ <- alt.final$coef
+sigma_ <- summary(alt4)$scale
+mu_ <- beta_[1] + beta_[2]*heart$x1 + beta_[3]*heart$x2 + beta_[4]*((heart$x1)^2) + beta_[5]*((heart$x2)^2)
+mu.alt.df <- data.frame(u = (log(heart$t)-mu_)/sigma_) %>% mutate(pr = rank(u)/(nrow(heart)+1), gompertz_x = log(-log(1-pr)))
+ggplot(mu.alt.df, aes(gompertz_x, u)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Gompertz Distn", subtitle = paste("R.sq = ", round(summary(lm(gompertz_x~u, mu.alt.df))$r.squared,4)*100, "%", sep = "")) + theme_light()
+# (T가 gompertz를 따르므로) lnT에 대해서는 gompertz를 따름
+```
+
+
+

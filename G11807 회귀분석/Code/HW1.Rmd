@@ -1,0 +1,272 @@
+---
+title: "HW1"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# 2.5
+p2.5 <- data.frame(purity=c(86.91, 89.85, 90.28, 86.34, 92.58, 87.33, 86.29, 91.86, 95.61, 89.86, 96.73, 99.42, 98.66, 96.07, 93.65, 87.31, 95.00, 96.85, 85.20, 90.56),
+                   hydrocarbon=c(1.02, 1.11, 1.43, 1.11, 1.01, 0.95, 1.11, 0.87, 1.43, 1.02, 1.46, 1.55, 1.55, 1.55, 1.40, 1.15, 1.01, 0.99, 0.95, 0.98))
+plot(purity~hydrocarbon, data=p2.5)
+
+# a)
+lm.fit <- lm(purity ~ hydrocarbon, data=p2.5)
+summary(lm.fit)
+
+ybar <- mean(p2.5$purity)
+xbar <- mean(p2.5$hydrocarbon)
+
+Sxx <- sum((p2.5$hydrocarbon - xbar)^2)
+Sxy <- sum((p2.5$purity - ybar)*(p2.5$hydrocarbon - xbar))
+
+Sxx
+Sxy
+
+b1 <- Sxy/Sxx
+b1
+
+b0 <- (ybar - b1*xbar)
+
+plot(purity~hydrocarbon, data=p2.5)
+abline(lm(purity ~ hydrocarbon, data=p2.5), col=2)
+
+# b)
+yhat <- predict(lm.fit)
+SST <- sum((p2.5$purity-ybar)^2)
+SSR <- sum((yhat-ybar)^2)
+SSE <- sum((p2.5$purity-yhat)^2)
+SST
+SSR
+SSE
+SSR + SSE
+
+n <- nrow(p2.5)
+MSR <- SSE/(n-2)
+seb1 <- sqrt(MSR/Sxx) # Standard Error of Beta 1
+t0 <- (b1 - 0)/seb1
+t0
+t0.975 <- qt(0.975, 18)
+t0.975
+
+2*(1-pt(t0, 10)) #p-value
+
+# c)
+Rsqr <- SSR/SST
+
+# d)
+b1 - t0.975*seb1
+b1 + t0.975*seb1
+
+# e)
+x0 <- 1
+
+yhat1 <- lm.fit$coefficients[1] + lm.fit$coefficients[2]*x0
+yhat1
+
+seEy1 <- sqrt(MSR*(1/n + ((x0-xbar)^2)/Sxx))
+yhat1 - t0.975*seEy1
+yhat1 + t0.975*seEy1
+
+# 2.12
+p2.12 <- data.frame(temperature=c(21, 24, 32, 47, 50, 59, 68, 74, 62, 50, 41, 30),
+                    usage=c(185.79, 214.47, 288.03, 424.84, 454.68, 539.03, 621.55, 675.06, 562.03, 452.93, 369.95, 273.98))
+plot(usage~temperature, data=p2.12)
+
+# a)
+lm.fit <- lm(usage ~ temperature, data=p2.12)
+summary(lm.fit)
+
+ybar <- mean(p2.12$usage)
+xbar <- mean(p2.12$temperature)
+
+Sxx <- sum((p2.12$temperature - xbar)^2)
+Sxy <- sum((p2.12$usage - ybar)*(p2.12$temperature - xbar))
+
+Sxx
+Sxy
+
+b1 <- Sxy/Sxx
+b1
+
+b0 <- (ybar - b1*xbar)
+b0
+
+plot(usage~temperature, data=p2.12)
+abline(lm(usage ~ temperature, data=p2.12), col=2)
+
+# b)
+yhat <- predict(lm.fit)
+SST <- sum((p2.12$usage-ybar)^2)
+SSR <- sum((yhat-ybar)^2)
+SSE <- sum((p2.12$usage-yhat)^2)
+SST
+SSR
+SSE
+SSR + SSE
+
+n <- nrow(p2.12)
+MSR <- SSE/(n-2)
+MSR
+seb1 <- sqrt(MSR/Sxx) # Standard Error of Beta 1
+seb1
+t0 <- (b1 - 0)/seb1
+t0
+t0.975 <- qt(0.975, 10)
+t0.975
+
+1-pt(t0, 10) #p-value
+
+anova(lm.fit)
+t0^2
+
+# c)
+t0 <- (b1 - 10)/seb1
+t0
+t0.975 <- qt(0.975, 10)
+t0.975
+
+2*(1-pt(t0, 10)) #p-value
+
+
+# d)
+x0 <- 58
+
+yhat58 <- lm.fit$coefficients[1] + lm.fit$coefficients[2]*x0
+yhat58
+
+t0.995 <- qt(0.995, 10)
+
+seEy58 <- sqrt(MSR*(1 + 1/n + ((x0-xbar)^2)/Sxx))
+seEy58
+yhat58 - t0.995*seEy1
+yhat58 + t0.995*seEy1
+
+new2.12 <- data.frame(temperature=58)
+predict(lm.fit, new2.12, interval="prediction", level=0.99)
+
+# 2.14
+p2.14 <- data.frame(viscosity=c(0.45, 0.20, 0.34, 0.58, 0.70, 0.57, 0.55, 0.44),
+                    ratio=c(1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3))
+plot(viscosity~ratio, data=p2.14)
+
+# b)
+lm.fit <- lm(viscosity ~ ratio, data=p2.14)
+summary(lm.fit)
+
+ybar <- mean(p2.14$viscosity)
+xbar <- mean(p2.14$ratio)
+
+Sxx <- sum((p2.14$ratio - xbar)^2)
+Sxy <- sum((p2.14$viscosity - ybar)*(p2.14$ratio - xbar))
+
+Sxx
+Sxy
+
+b1 <- Sxy/Sxx
+b1
+
+b0 <- (ybar - b1*xbar)
+b0
+
+plot(viscosity ~ ratio, data=p2.14)
+abline(lm(viscosity ~ ratio, data=p2.14), col=2)
+
+# c)
+yhat <- predict(lm.fit)
+SST <- sum((p2.14$viscosity-ybar)^2)
+SSR <- sum((yhat-ybar)^2)
+SSE <- sum((p2.14$viscosity-yhat)^2)
+SST
+SSR
+SSE
+SSR + SSE
+
+n <- nrow(p2.14)
+MSR <- SSE/(n-2)
+MSR
+seb1 <- sqrt(MSR/Sxx) # Standard Error of Beta 1
+seb1
+t0 <- (b1 - 0)/seb1
+t0
+t0.975 <- qt(0.975, 6)
+t0.975
+
+pt(t0, 6)*2 #p-value, t0가 음수
+
+anova(lm.fit)
+t0^2
+
+Rsqr <- SSR/SST
+Rsqr
+
+# d)
+C.I <- as.data.frame(predict(lm.fit, interval = "confidence", level = 0.95))
+P.I <- as.data.frame(suppressWarnings(predict(lm.fit, interval = "prediction", level = 0.95)))
+
+plot(viscosity ~ ratio, data=p2.14, ylim=c(-0.3,1.2), main = "95% CI & PI of Y-Viscocity X-Ratio Regression ")
+abline(lm(viscosity ~ ratio, data=p2.14), col=2)
+lines(C.I$lwr ~ p2.14$ratio, lty=2, col=3)
+lines(C.I$upr ~ p2.14$ratio, lty=2, col=3)
+lines(P.I$lwr ~ p2.14$ratio, lty=3, col=4)
+lines(P.I$upr ~ p2.14$ratio, lty=3, col=4)
+
+# 2.23
+set.seed(1234)
+
+X <- seq(1, 10, by=0.5)
+n <- length(X)
+t0.975 <- qt(0.975, df=n-2)
+b <- data.frame(b0 = seq(1, 500), b1 = seq(1, 500))
+CI_b1 <- data.frame(lwr = seq(1, 500), upr = seq(1, 500))
+Ey <- data.frame(Ey5 = seq(1,500))
+CI_Ey5 <- data.frame(lwr = seq(1, 500), upr = seq(1, 500))
+
+for(i in 1:500){
+  p2.23 <- data.frame(x=X,
+                      y=50 + 10*X + rnorm(n, mean=0, sd=4))
+  lm.fit <- lm(y~x, data=p2.23)
+  b[i,1] <- lm.fit$coefficients[1]
+  b[i,2] <- lm.fit$coefficients[2]
+  
+  t0.975 <- qt(0.975, df=length(X)-2)
+  CI_b1[i,1] <- lm.fit$coefficients[2] - t0.975*summary(lm.fit)$coef[[4]]
+  CI_b1[i,2] <- lm.fit$coefficients[2] + t0.975*summary(lm.fit)$coef[[4]]
+  # se(b1): summary(lm.fit)$coef[[4]]
+  
+  Ey$Ey5[i] <- lm.fit$coefficients[1] + lm.fit$coefficients[2]*5
+  CI_Ey5[i,1] <- predict(lm.fit, interval = "confidence", level = 0.95)[28] #x=5일 때 하한
+  CI_Ey5[i,2] <- predict(lm.fit, interval = "confidence", level = 0.95)[47] #x=5일 때 상한
+  # MSE: anova(lm.fit)[2,3], predict: list 형태
+}
+
+
+
+# a)
+hist(b$b0, main="Histogram of b0 n=500")
+hist(b$b1, main="Histogram of b1 n=500")
+# Both b0 and b1 looks like Normal Distribution
+
+# b)
+hist(Ey$Ey5, main="Histogram of E[Y|X=5] n=500")
+# number of 500 E[Y|X=5]s looks like Normal Distribution
+
+# c)
+CI_b1$c <- ifelse((CI_b1$lwr < 10) & (CI_b1$upr > 10), 1, 0)
+length(CI_b1[CI_b1$c==1,3])
+mean(CI_b1$c)
+# 95% CI? 100개 CI를 구하면 그 중 95개 CI에는 True Value가 속하는 CI
+# n개가 CI를 벗어났지만 굉장히 기대치에 가깝다.
+
+# d)
+# 참고) X=5는 Observed Data 범위 내, P.I가 아닌 C.I 구하면 됨
+CI_Ey5$c <- ifelse((CI_Ey5$lwr < 100) & (CI_Ey5$upr > 100), 1, 0)
+length(CI_Ey5[CI_Ey5$c==1,3])
+mean(CI_Ey5$c)
+# 95% CI? 100개 CI를 구하면 그 중 95개 CI에는 True Value가 속하는 CI
+# 1개가 CI를 벗어났지만 굉장히 기대치에 가깝다.
+```
+

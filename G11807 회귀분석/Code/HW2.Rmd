@@ -1,0 +1,223 @@
+---
+title: "hw2"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# 3.1
+B1 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW2/data-table-B1.csv", header=T)
+
+# a.
+Y <- as.matrix(B1$y)
+X <- as.matrix(rep(1, 28))
+X <- cbind(X, as.matrix(B1[,c(3,8,9)]))
+(Bhat <- solve(t(X)%*%X)%*%t(X)%*%Y)
+
+lm.fit <- lm(y ~ x2 + x7 + x8, B1)
+summary(lm.fit)
+
+# b.
+(n <- nrow(Y))
+(k <- ncol(X) - 1)
+
+(SST <- t(Y)%*%Y - n*mean(Y)^2) # sum((Y-mean(Y))^2)
+(SSE <-  t(Y)%*%Y - t(Bhat)%*%t(X)%*%Y)
+(SSR <- SST - SSE)
+
+(MST <- SST / (n-1))
+(MSR <- SSR / k)
+(MSE <- SSE / (n-k-1))
+
+(F0 <- MSR / MSE)
+(F0.95 <- qf(0.95, k, n-k-1))
+(1-pf(F0, k, n-k-1)) # p-value
+
+# c.
+C <- solve(t(X)%*%(X))
+
+# H0: B2 = 0
+(se.B2hat <- sqrt(MSE*C[2,2]))
+(t0_B2 <- Bhat[2]/se.B2hat)
+(t0.95 <- qt(0.975, 24))
+(2*(1-pt(t0_B2, 24))) # p-value
+
+# H0: B7 = 0
+(se.B7hat <- sqrt(MSE*C[3,3]))
+(t0_B7 <- Bhat[3]/se.B7hat)
+(t0.95 <- qt(0.975, 24))
+(2*(1-pt(t0_B7, 24))) # p-value
+
+# H0: B8 = 0
+(se.B8hat <- sqrt(MSE*C[4,4]))
+(t0_B8 <- Bhat[4]/se.B8hat)
+(t0.95 <- qt(0.975, 24))
+(2*(pt(t0_B8, 24))) # p-value
+
+summary(lm.fit)
+
+# d. 
+summary(lm.fit)$r.sq
+paste("R square : ", round((SSR / SST),4), sep="")
+paste("Adj R square : ", round(1 - (SSE/(n-k-1))/((SST)/(n-1)),4), sep="")
+
+# e.
+X1 <- as.matrix(rep(1, 28))
+X1 <- cbind(X1, as.matrix(B1[,c(3,9)]))
+r <- 1
+(B1hat <- solve(t(X1)%*%X1)%*%t(X1)%*%Y)
+
+(SST_B1 <- t(Y)%*%Y - n*mean(Y)^2) # sum((Y-mean(Y))^2)
+(SSE_B1 <-  t(Y)%*%Y - t(B1hat)%*%t(X1)%*%Y)
+(SSR_B1 <- SST_B1 - SSE_B1)
+(SSRB2B1 <- SSR - SSR_B1)
+(F0 <- (SSRB2B1/r)/MSE)
+(F0.95 <- 1-pf(0.95, r, n-(k+1)))
+
+lm.fit2 <- lm(y ~ x2 + x8, data = B1)
+anova(lm.fit, lm.fit2)
+
+(t0_B7)^2
+
+# 3.2
+cor(Y, predict(lm.fit))^2
+
+cov(Y, predict(lm.fit))
+sd(Y)
+sd(predict(lm.fit))
+
+# 3.3
+# a.
+(t0.95 <- qt(0.975, 24))
+paste("95% CI for B7: (", round(Bhat[3] - t0.95*se.B7hat,5), ", ", round(Bhat[3] + t0.95*se.B7hat,5), ")", sep = "")
+
+
+# b.
+X0 <- data.frame(V1 = 1, x2 = 2300, x7 = 56.0, x8 = 2100)
+Y0hat <- predict(lm.fit, X0)
+X0 <- as.matrix(X0)
+(se.YX0 <- sqrt(MSE*X0%*%solve(t(X)%*%X)%*%t(X0)))
+
+paste("95% CI for E[Y|X0]: (", round(Y0hat - t0.95*se.YX0,5), ", ", round(Y0hat + t0.95*se.YX0,5), ")", sep = "")
+
+# 3.4
+# a.
+lm.fit <- lm(y ~ x7 + x8, B1)
+summary(lm.fit)
+
+Y <- as.matrix(B1$y)
+X <- as.matrix(rep(1, 28))
+X <- cbind(X, as.matrix(B1[,c(8,9)]))
+(Bhat <- solve(t(X)%*%X)%*%t(X)%*%Y)
+
+(n <- nrow(Y))
+(k <- ncol(X) - 1)
+
+(SST <- t(Y)%*%Y - n*mean(Y)^2) # sum((Y-mean(Y))^2)
+(SSE <-  t(Y)%*%Y - t(Bhat)%*%t(X)%*%Y)
+(SSR <- SST - SSE)
+
+(MSR <- SSR / k)
+(MSE <- SSE / (n-k-1))
+
+(F0 <- MSR / MSE)
+(F0.95 <- qf(0.95, k, n-k-1))
+(1-pf(F0, k, n-k-1)) # p-value
+
+# b.
+summary(lm.fit)$r.sq
+
+paste("R square : ", round((SSR / SST),4), sep="")
+paste("Adj R square : ", round(1 - (SSE/(n-k-1))/((SST)/(n-1)),4), sep="")
+
+# c.
+C <- solve(t(X)%*%(X))
+
+(t0.95 <- qt(0.975, 25))
+(se.B7hat <- sqrt(MSE*C[2,2]))
+paste("95% CI for B7: (", round(Bhat[2] - t0.95*se.B7hat,5), ", ", round(Bhat[2] + t0.95*se.B7hat,5), ")", sep = "")
+
+X0 <- data.frame(V1 = 1, x7 = 56, x8 = 2100)
+Y0hat <- predict(lm.fit, X0)
+X0 <- as.matrix(X0)
+(se.YX0 <- sqrt(MSE*X0%*%solve(t(X)%*%X)%*%t(X0)))
+paste("95% CI for E[Y|X0]: (", round(Y0hat - t0.95*se.YX0,5), ", ", round(Y0hat + t0.95*se.YX0,5), ")", sep = "")
+
+# 3.7
+# a.
+B4 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW2/data-table-B4.csv", header=T)
+
+lm.fit <- lm(y ~ ., B4)
+summary(lm.fit)
+
+# b.
+Y <- as.matrix(B4$y)
+X <- as.matrix(rep(1, 24))
+X <- cbind(X, as.matrix(B4[,-c(1)]))
+(Bhat <- solve(t(X)%*%X)%*%t(X)%*%Y)
+
+(n <- nrow(Y))
+(k <- ncol(X) - 1)
+
+(SST <- t(Y)%*%Y - n*mean(Y)^2) # sum((Y-mean(Y))^2)
+(SSE <-  t(Y)%*%Y - t(Bhat)%*%t(X)%*%Y)
+(SSR <- SST - SSE)
+
+(MSR <- SSR / k)
+(MSE <- SSE / (n-k-1))
+
+(F0 <- MSR / MSE)
+(F0.95 <- qf(0.95, k, n-k-1))
+(1-pf(F0, k, n-k-1)) # p-value
+
+# c.
+(t0.95 <- qt(0.975, 14))
+summary(lm.fit)
+
+C <- solve(t(X)%*%(X))
+mse <- MSE[1,1]
+se <- sqrt(diag(mse*C))
+Bhat/se
+
+# d. 
+X1 <- as.matrix(rep(1, 24))
+X1 <- cbind(X1, as.matrix(B4[,-c(1,4,5)]))
+r <- 2
+(B1hat <- solve(t(X1)%*%X1)%*%t(X1)%*%Y)
+
+(SST_B1 <- t(Y)%*%Y - n*mean(Y)^2) # sum((Y-mean(Y))^2)
+(SSE_B1 <-  t(Y)%*%Y - t(B1hat)%*%t(X1)%*%Y)
+(SSR_B1 <- SST_B1 - SSE_B1)
+(SSRB2B1 <- SSR - SSR_B1)
+(F0 <- (SSRB2B1/r)/MSE)
+(qf(0.95, r, n-(k+1)))
+(F0.95 <- 1-pf(F0, r, n-(k+1)))
+
+lm.fit2 <- lm(y ~ x1 + x2 + x5 + x6 + x7 + x8 + x9, data = B4)
+anova(lm.fit, lm.fit2)
+
+# 3.19
+B19 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW2/data-table-B19.txt", header=F, sep=" ", col.names = c("y", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10"))
+B19 <- B19[,-2]
+
+lm.fit <- lm(y ~ ., data=B19)
+summary(lm.fit)
+# Remove x7, x10
+
+B19 <- B19[,-c(7,10)]
+
+library(car)
+lm.fit <- lm(y ~ ., data=B19)
+summary(lm.fit)
+vif(lm.fit)
+# F-statistic = 6.254
+
+# Further, we may check remove x4, x5.
+lm.fit <- lm(y ~ ., data=B19[,-c(4,5)])
+summary(lm.fit)
+vif(lm.fit)
+```
+

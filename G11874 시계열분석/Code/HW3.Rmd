@@ -1,0 +1,126 @@
+---
+title: "HW3"
+output: word_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+```
+
+### 1.
+#### (1) & (2)
+```{r}
+set.seed(1)
+n = 200; phi.1 = 1; phi.2 = 0
+a = rnorm(n)
+y = c(); y[1] = 0; y[2] = 0
+for (t in 3:n) {
+  y[t] = phi.1*y[t-1] + phi.2*y[t-2] + a[t]
+}
+
+# 시도표
+plot(y, type='l', main='AR(2) / φ1 = 1, φ2 = 0')
+mean(y); var(y)
+
+# SACF
+acf(y)
+
+# 시도표의 특징
+# 랜덤워크로 떠돌아다님
+
+# φ1 = 1, φ2 = 0
+```
+
+```{r}
+set.seed(1)
+n = 200; phi.1 = 1.8; phi.2 = -0.8
+a = rnorm(n)
+y = c(); y[1] = 0; y[2] = 0
+for (t in 3:n) {
+  y[t] = phi.1*y[t-1] + phi.2*y[t-2] + a[t]
+}
+
+# 시도표
+plot(y, type='l', main='AR(2) / φ1 = 1.8, φ2 = -0.8')
+mean(y); var(y)
+
+# SACF
+acf(y)
+
+# 시도표의 특징
+# 비정상으로 local mean이 일정하지 않음, 선형추세는 없음
+
+# φ1 = 1.8, φ2 = -0.8
+```
+
+```{r}
+set.seed(1)
+n = 200; phi.1 = 2; phi.2 = -1
+a = rnorm(n)
+y = c(); y[1] = 0; y[2] = 0
+for (t in 3:n) {
+  y[t] = phi.1*y[t-1] + phi.2*y[t-2] + a[t]
+}
+
+# 시도표
+plot(y, type='l', main='AR(2) / φ1 = 2, φ2 = -1')
+mean(y); var(y)
+
+# SACF
+acf(y)
+
+# 시도표의 특징
+# 비정상으로 local mean이 일정하지 않음, 확률적 추세 존재
+
+# φ1 = 2, φ2 = -1
+```
+
+#### (3) & (4)
+<br><br>  
+
+### 2.
+#### (1)
+```{r}
+edu <- read.table("C:/USER/grad/2020-2/시계열분석/HW3/EX3_6_Edu_Ent.txt", col.names = 'ent')
+plot(x = 1962:2002, y = edu$ent, type='b', main = '교육 교양오락비 (원)')
+
+# 80년대 이전은 값이 작고 변동도 작으나,
+# 90년대 이후 값이 크고 변동도 크다.
+```
+
+#### (2)
+```{r}
+edu <- read.table("C:/USER/grad/2020-2/시계열분석/HW3/EX3_6_Edu_Ent.txt", col.names = 'ent')
+edu$lnEnt <- log(edu$ent)
+
+plot(x = 1962:2002, y = edu$lnEnt, type='b', main = '로그 교육 교양오락비 (원)')
+
+# 이분산성 완화되었다.
+```
+
+#### (3)
+```{r}
+# 위 (2) 의 그래프를 보면 단위근 검정을 [추세모형 with 상수] 에 대해 적용한다.
+
+# AIC
+library(forecast)
+
+aic = c()
+for(p in 1:10){
+  ar.fit = Arima(edu$lnEnt, order=c(p,0,0))
+  aic[p] = ar.fit$aic
+}
+
+plot(aic, type='b')
+which.min(aic) 
+# p = 6 (= 7-1) 선택
+
+
+# 단위근 검정
+library(fUnitRoots)
+adfTest(edu$lnEnt, type='ct', lags=6)
+# p-value > 0.05 => Do not reject H0, Stochastic Trend이자 단위근 계열
+
+# => ARIMA(6, 1, 0)으로 fitting
+```
+

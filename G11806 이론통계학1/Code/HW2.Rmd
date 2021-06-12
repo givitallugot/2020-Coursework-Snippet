@@ -1,0 +1,125 @@
+---
+title: "hw2_rm"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+```
+
+```{r}
+set.seed(1234)
+
+
+mu <- 0.05
+sd <- 0.3
+i <- 0.02 #정기예금금리
+
+# a <- 0.5 #위험자산 투자비율
+# rstar <- 0.04 #목표수익률
+# n <- 5 #투자기간
+
+# mksimul(a): 난수 생성 및 V1 - V10 구하는 함수
+mksimul <- function(a) {
+  simul <- data.frame(z1=rnorm(1000, mean = 0, sd = 1),
+                      z2=rnorm(1000, mean = 0, sd = 1),
+                      z3=rnorm(1000, mean = 0, sd = 1),
+                      z4=rnorm(1000, mean = 0, sd = 1),
+                      z5=rnorm(1000, mean = 0, sd = 1),
+                      z6=rnorm(1000, mean = 0, sd = 1),
+                      z7=rnorm(1000, mean = 0, sd = 1),
+                      z8=rnorm(1000, mean = 0, sd = 1),
+                      z9=rnorm(1000, mean = 0, sd = 1),
+                      z10=rnorm(1000, mean = 0, sd = 1),
+                      z11=rnorm(1000, mean = 0, sd = 1),
+                      z12=rnorm(1000, mean = 0, sd = 1),
+                      z13=rnorm(1000, mean = 0, sd = 1),
+                      z14=rnorm(1000, mean = 0, sd = 1),
+                      z15=rnorm(1000, mean = 0, sd = 1),
+                      z16=rnorm(1000, mean = 0, sd = 1),
+                      z17=rnorm(1000, mean = 0, sd = 1),
+                      z18=rnorm(1000, mean = 0, sd = 1),
+                      z19=rnorm(1000, mean = 0, sd = 1),
+                      z20=rnorm(1000, mean = 0, sd = 1),
+                      v0=1)
+  simul['v1'] <- simul$v0*(1+(1-a)*i+a*(exp(mu+sd*simul$z1)-1))
+  simul['v2'] <- simul$v1*(1+(1-a)*i+a*(exp(mu+sd*simul$z2)-1))
+  simul['v3'] <- simul$v2*(1+(1-a)*i+a*(exp(mu+sd*simul$z3)-1))
+  simul['v4'] <- simul$v3*(1+(1-a)*i+a*(exp(mu+sd*simul$z4)-1))
+  simul['v5'] <- simul$v4*(1+(1-a)*i+a*(exp(mu+sd*simul$z5)-1))
+  simul['v6'] <- simul$v5*(1+(1-a)*i+a*(exp(mu+sd*simul$z6)-1))
+  simul['v7'] <- simul$v6*(1+(1-a)*i+a*(exp(mu+sd*simul$z7)-1))
+  simul['v8'] <- simul$v7*(1+(1-a)*i+a*(exp(mu+sd*simul$z8)-1))
+  simul['v9'] <- simul$v8*(1+(1-a)*i+a*(exp(mu+sd*simul$z9)-1))
+  simul['v10'] <- simul$v9*(1+(1-a)*i+a*(exp(mu+sd*simul$z10)-1))
+  simul['v11'] <- simul$v10*(1+(1-a)*i+a*(exp(mu+sd*simul$z11)-1))
+  simul['v12'] <- simul$v11*(1+(1-a)*i+a*(exp(mu+sd*simul$z12)-1))
+  simul['v13'] <- simul$v12*(1+(1-a)*i+a*(exp(mu+sd*simul$z13)-1))
+  simul['v14'] <- simul$v13*(1+(1-a)*i+a*(exp(mu+sd*simul$z14)-1))
+  simul['v15'] <- simul$v14*(1+(1-a)*i+a*(exp(mu+sd*simul$z15)-1))
+  simul['v16'] <- simul$v15*(1+(1-a)*i+a*(exp(mu+sd*simul$z16)-1))
+  simul['v17'] <- simul$v16*(1+(1-a)*i+a*(exp(mu+sd*simul$z17)-1))
+  simul['v18'] <- simul$v17*(1+(1-a)*i+a*(exp(mu+sd*simul$z18)-1))
+  simul['v19'] <- simul$v18*(1+(1-a)*i+a*(exp(mu+sd*simul$z19)-1))
+  simul['v20'] <- simul$v19*(1+(1-a)*i+a*(exp(mu+sd*simul$z20)-1))
+  
+  return(simul)
+}
+
+# astar (a, RSFC) 데이터셋, a는 0부터 1까지 0.1씩 증가
+mkastar <- function(n, rstar=0.04){
+  astar <- data.frame(a = seq(from=0, to=1, by=0.1)); j=1
+  for(a in seq(from=0, to=1, by=0.1)){
+    
+    mysim <- mksimul(a)
+    
+    RSFC <- data.frame(RoySFC = sample(1, size=20, replace=TRUE))
+    for(k in 1:19){
+      RSFC$RoySFC[k] <- mean(ifelse(mysim[21+k] > mysim$v0*(1+rstar)^k, 1, 0))
+    }
+    
+    astar[j, 'RoySFC_M'] <- mean(RSFC$RoySFC[1:n])
+    j = j + 1
+  }
+  
+  return(astar)
+}
+
+# Stock Price Model
+kospi <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW2/6.1.2 주식거래 및 주가지수.csv", header=T)
+
+# lnPt, TimeSeries plot
+kospi$lnPt <- log(kospi$kospi)
+
+library(forecast)
+lnkospi <- ts(kospi$lnPt, freq=1, start = c(2005), deltat=1/12)
+plot(lnkospi, main = "ln(KOSPI) TimeSeries Plot")
+
+# ΔlnPt, TimeSeries plot
+d <- c()
+d[1] <- 0
+d[2:181] <- diff(kospi$lnPt)
+dlnkospi <- ts(d, freq=1, start = c(2005), deltat=1/12)
+plot(dlnkospi, main = "Δln(KOSPI) TimeSeries Plot")
+
+# Q-Q plot, 정규성 검정
+qqplot(x = qnorm(ppoints(n = 181)), y = d, xlab = "Theoretical Quantiles", ylab = "ln(1+rt) Quantiles", main="Q-Q plot - Normal")
+qqline(d, col="2")
+
+mean(d[2:181])
+var(d[2:181])
+
+mu <- mean(d[2:181])*12 # Mudt
+sd <- sqrt(var(d[2:181])*12) # Sddt
+mu
+sd
+# r*=0.04, n=10
+myastar <- mkastar(10, 0.04)
+max(myastar$RoySFC_M) # max RSFC
+(which.max(myastar$RoySFC_M)-1)/10 # a*
+```
+

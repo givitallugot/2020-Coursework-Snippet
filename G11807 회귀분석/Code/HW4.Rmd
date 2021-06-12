@@ -1,0 +1,192 @@
+---
+title: "HW4"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# 5.3
+# a.
+P5.3 <- data.frame(bact = c(175, 108, 95, 82, 71, 50, 49, 31, 28, 17, 16, 11), expo=c(1:12))
+plot(bact~expo, data=P5.3, main="Scatter Diagram")
+abline(lm(bact~expo, data = P5.3), col='red')
+# Non linear pattern in the Scatter Diagram.
+
+# b.
+library(MASS)
+lm.fit <- lm(bact~expo, data = P5.3)
+summary(lm.fit)
+
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit), col="red", lwd=1)
+# 곡선 효과가 약간 존재하며 아웃라이어가 매우 직선을 벗어나 정규성을 만족한다고 하기 어려움
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+# 랜덤하게 분포하지 않으며 곡선효과가 있는 것으로 보임
+
+# 현재 가정한 선형 모델은 적절하지 않음, X 변환 필요
+
+# c.
+P5.3$logexpo <- log(P5.3$expo)
+P5.3$byexpo <- 1/P5.3$expo
+P5.3$sqrtexpo <- sqrt(P5.3$expo)
+P5.3$bysqrtexpo <- 1/sqrt(P5.3$expo)
+
+lm.fit1 <- lm(bact ~ logexpo, data = P5.3)
+qqnorm(stdres(lm.fit1), main = "Normal Probability plot of Studentized Residuals, log(X)", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit1), col="red", lwd=1)
+plot(lm.fit1$fitted.values, stdres(lm.fit1), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit2 <- lm(bact ~ byexpo, data = P5.3)
+qqnorm(stdres(lm.fit2), main = "Normal Probability plot of Studentized Residuals, 1/X", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit2), col="red", lwd=1)
+plot(lm.fit2$fitted.values, stdres(lm.fit2), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit3 <- lm(bact ~ sqrtexpo, data = P5.3)
+qqnorm(stdres(lm.fit3), main = "Normal Probability plot of Studentized Residuals, sqrt(X)", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit3), col="red", lwd=1)
+plot(lm.fit3$fitted.values, stdres(lm.fit3), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit4 <- lm(bact ~ bysqrtexpo, data = P5.3)
+qqnorm(stdres(lm.fit4), main = "Normal Probability plot of Studentized Residuals, 1/sqrt(X)", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit4), col="red", lwd=1)
+plot(lm.fit4$fitted.values, stdres(lm.fit4), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+# log(x)가 가장 나음
+summary(lm.fit1)
+
+# 5.5
+
+P5.5 <- data.frame(defect = c(13.0, 16.1, 14.5, 17.8, 22.0, 27.4, 16.8, 34.2, 65.6, 49.2, 66.2, 81.2, 87.4, 114.5), week=c(4:17))
+# a.
+lm.fit <- lm(defect~week, data = P5.5)
+summary(lm.fit)
+
+plot(defect~week, data=P5.5, main="Scatter Diagram")
+abline(lm(defect~week, data=P5.5), col='red')
+# Non linear pattern in scatter plot
+
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit), col="red", lwd=1)
+# 직선 형태가 아니고 곡선효과가 존재하는 것으로 보임, 정규성은 만족한다고 볼 수 없음 -> Y 변환 필요
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+# 약간의 곡선효과가 있는 것으로 보임, X 변환이 필요할 수도 있다.
+
+P5.5$logdefect <- log(P5.5$defect)
+P5.5$bydefect <- 1/P5.5$defect
+P5.5$sqrtdefect<- sqrt(P5.5$defect)
+P5.5$bysqrtdefect <- 1/sqrt(P5.5$defect)
+
+lm.fit1 <- lm(logdefect ~ week, data = P5.5)
+qqnorm(stdres(lm.fit1), main = "Normal Probability plot of Studentized Residuals, log(Y)", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit1), col="red", lwd=1)
+plot(lm.fit1$fitted.values, stdres(lm.fit1), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit2 <- lm(bydefect ~ week, data = P5.5)
+qqnorm(stdres(lm.fit2), main = "Normal Probability plot of Studentized Residuals, 1/Y", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit2), col="red", lwd=1)
+plot(lm.fit2$fitted.values, stdres(lm.fit2), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit3 <- lm(sqrtdefect ~ week, data = P5.5)
+qqnorm(stdres(lm.fit3), main = "Normal Probability plot of Studentized Residuals, sqrt(Y)", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit3), col="red", lwd=1)
+plot(lm.fit3$fitted.values, stdres(lm.fit3), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit4 <- lm(bysqrtdefect ~ week, data = P5.5)
+qqnorm(stdres(lm.fit4), main = "Normal Probability plot of Studentized Residuals, 1/sqrt(Y)", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit4), col="red", lwd=1)
+plot(lm.fit4$fitted.values, stdres(lm.fit4), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+# # log(Y)가 가장 나음
+summary(lm.fit1)
+
+# 5.12
+# a.
+P5.12 <- read.csv("C:/USER/grad/2020-1/G11807 회귀분석/HW4/data/5.12.csv", header=T)
+lm.fit <- lm(ybar ~ x1+x2+x3, data = P5.12)
+summary(lm.fit)
+
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(lm.fit), col="red", lwd=1)
+# outlier가 3개 정도 존재, 그 외에는 정규성 만족하는 것으로 보임
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+# 약간의 곡선 효과가 보임, 랜덤하게 분포하지 않으므로 등분산성 만족하지 않음
+
+# b. 불가능하다. y=0이 존재하므로
+
+P5.12$var <- (P5.12$s)^2
+P5.12$weight <- 1/P5.12$var
+# w.lm.fit <- lm(ybar ~ x1+x2+x3, data = P5.12, weights = weight) # 불가능
+
+# 그냥 두 관측치를 제외하고 구한 결과 <- 좋은 방법이 아님
+P5.12_ <- P5.12[-c(10,14),]
+w.lm.fit <- lm(ybar ~ x1+x2+x3, data = P5.12_, weights = weight)
+
+qqnorm(stdres(w.lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual",cex.main = 0.8)
+qqline(stdres(w.lm.fit), col="red", lwd=1)
+plot(w.lm.fit$fitted.values, stdres(w.lm.fit), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+# (두 관측치를 제외하고 적합한 결과) LSE에 비해 WLSE를 사용한 결과 표준화 잔차그림의 문제가 곡선 효과와 이분산성 문제가 어느정도 해결되었다고 볼 수 있다.
+
+# c.
+# 마찬가지로 그냥 두 관측치를 제외하고 구한 결과 <- 좋은 방법이 아님
+P5.12$logweight <- log(P5.12$weight)
+P5.12_ <- P5.12[-c(10,14),]
+
+# w.lm.fit1 <- lm(ybar ~ x1+x2+x3, data = P5.12_, weights = logweight) # 불가능
+
+w.lm.fit2 <- lm(ybar ~ x1+x2+x3, data = P5.12_, weights = s) # 불가능
+qqnorm(stdres(w.lm.fit2), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(w.lm.fit2), col="red", lwd=1)
+plot(w.lm.fit2$fitted.values, stdres(w.lm.fit2), main = "Studentized Residial vs Yhat, weights=1/sqrt(var)", cex.main = 0.8)
+
+# 5.23
+P5.23 <- data.frame(Batch = c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B', 'C', 'C', 'C', 'C', 'C', 'C'),
+                    Pres = c(400, 400, 500, 500, 600, 600, 400, 400, 500, 500, 600, 600, 400, 400, 500, 500, 600, 600),
+                    Str = c(198.4, 198.6, 199.6, 200.4, 200.6, 200.9, 197.5, 198.1, 198.7, 198.0, 199.6, 199.0, 197.6, 198.4, 197.0, 197.8, 198.5, 199.8))
+P5.23$Pres <- as.factor(P5.23$Pres)
+lm.fit <- lm(Str~., P5.23)
+summary(lm.fit)
+
+library(alr3)
+pureErrorAnova(lm.fit)
+
+qqnorm(stdres(lm.fit), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit), col="red", lwd=1)
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+P5.23$lnStr <- log(P5.23$Str)
+P5.23$byStr <- 1/(P5.23$Str)
+P5.23$sqrtStr <- sqrt(P5.23$Str)
+P5.23$bysqrtStr <- 1/sqrt(P5.23$Str)
+
+lm.fit1 <- lm(lnStr~Batch + Pres, P5.23)
+qqnorm(stdres(lm.fit1), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit1), col="red", lwd=1)
+plot(lm.fit1$fitted.values, stdres(lm.fit1), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit2 <- lm(byStr~Batch + Pres, P5.23)
+qqnorm(stdres(lm.fit2), main = "Normal Probability plot of Studentized Residuals", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit2), col="red", lwd=1)
+plot(lm.fit2$fitted.values, stdres(lm.fit2), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+
+lm.fit3 <- lm(sqrtStr~Batch + Pres, P5.23)
+qqnorm(stdres(lm.fit3), main = "Normal Probability plot of Studentized Residuals Y=sqrt(Y)", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit3), col="red", lwd=1)
+plot(lm.fit3$fitted.values, stdres(lm.fit3), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+pureErrorAnova(lm.fit3)
+
+lm.fit4 <- lm(bysqrtStr~Batch + Pres, P5.23)
+qqnorm(stdres(lm.fit4), main = "Normal Probability plot of Studentized Residuals Y=1/sqrt(Y)", ylab="studentized residual", cex.main = 0.8)
+qqline(stdres(lm.fit4), col="red", lwd=1)
+plot(lm.fit4$fitted.values, stdres(lm.fit4), main = "Studentized Residial vs Yhat", cex.main = 0.8)
+pureErrorAnova(lm.fit4)
+
+summary(lm.fit4)
+
+```
+

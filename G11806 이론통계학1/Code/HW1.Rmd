@@ -1,0 +1,72 @@
+---
+title: "HW1_RM"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Four Data Set
+Index <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/country index.csv", header=T)
+GDP <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/GDP per capita.csv",header=T)
+Suicide <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/Suicide Rate.csv", header=T)
+Happiness <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/Happiness Score.csv", header=T)
+LifeExp <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/Life Expectancy.csv", header=T)
+m_Suicide16 <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW1/data/m_Suicide16.csv", header=T)
+```
+
+
+```{r}
+# Merge
+library(dplyr)
+fulldata <- left_join(GDP, Index, by=c("Country"="Country"))
+fulldata <- left_join(fulldata, Happiness)
+fulldata <- left_join(fulldata, Suicide)
+fulldata <- left_join(fulldata, LifeExp)
+fulldata16 <- fulldata[fulldata$Year==2016,]
+```
+
+
+```{r}
+# Bubble Chart 1
+library(ggplot2)
+library(ggrepel)
+# Region 단위 - 데이터셋 집계 필요
+r_fulldata16 <- as.data.frame(fulldata16 %>% filter(!is.na(Region) & Region!="") %>% group_by(Region) %>% summarise(m_logGDP = mean(logGDP, na.rm=TRUE), m_Happiness = mean(Happiness, na.rm=TRUE), m_Suicide = mean(Suicide, na.rm=TRUE), m_LifeExp = mean(LifeExp, na.rm=TRUE)))
+
+ggplot(r_fulldata16, aes(x=m_logGDP, y=m_LifeExp)) + 
+  geom_point(aes(size=m_Suicide, fill=Region), shape=21, alpha=0.8) + 
+  geom_text_repel(aes(label=Region), vjust=1, colour="grey40", size=3, min.segment.length = 1.5, box.padding = 1) + 
+  scale_size_continuous(range = c(1, 20)) + labs(title="Bubble Chart with lnGDP and Life Expectancy by Region") + theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) + coord_fixed(ratio = 0.09)
+
+# Bubble Chart 2
+n_fulldata16 <- fulldata16[complete.cases(fulldata16),] #나라가 너무 많아서 complete case만
+
+ggplot(n_fulldata16, aes(x=logGDP, y=LifeExp)) + 
+  geom_point(aes(size=Suicide, fill=Region), shape=21, alpha=0.5) + 
+  geom_text(aes(label=Country), vjust=1, colour="grey20", size=3, check_overlap = TRUE) + 
+  scale_size_continuous(range = c(1, 20)) + labs(title="Bubble Chart with lnGDP and Life Expectancy by Country") + theme_bw() +
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) +
+  guides(size=FALSE, fill=guide_legend(title=NULL))
+```
+
+
+```{r}
+# Map
+world <- map_data(map = "world")
+mworld <- world[world$region != "Antarctica",] #남극 제외
+mworld <- left_join(mworld, m_Suicide16, by=c("region" = "Country"))
+
+ggplot(data = mworld, mapping=aes(x = long, y = lat, group = group)) + 
+  geom_polygon(aes(fill=Suicide)) + labs(title = "World Map with Suicide Rates") + theme_bw() + 
+  scale_fill_gradient(low = "#FFFFFF", high = "#6441A5", space = "Lab", guide = "colourbar", name="Suicides per 100K") + 
+  guides(fill = guide_legend(title.theme = element_text(size = 8))) + 
+  theme(legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank(), plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) + coord_fixed(ratio = 1.5)
+```
+
+

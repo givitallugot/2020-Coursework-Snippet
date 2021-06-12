@@ -1,0 +1,463 @@
+---
+title: "HW4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PART 1. Challenger호 O-ring 사고 확률예측
+```{r fig.align='center', fig.width=5, fig.asp = .7}
+library(optimx)
+
+oring <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW4/data/P1.Oring.csv", header=T, na.string="*")
+oring <- oring[complete.cases(oring),] #NA 제거
+
+plot(oring$Temp, oring$ero_blo)
+```
+
+#### a.
+```{r}
+# logit link
+# 먼저 초기값 설정을 위해 최소제곱추정법을 이용
+logit.glm <- glm(cbind(ero_blo, 6-ero_blo) ~ Temp, data = oring, family=binomial(link="logit"))
+alpha.hat <- summary(logit.glm)$coef[1]
+beta.hat <- summary(logit.glm)$coef[2]
+
+# MLE로 파라미터 추정
+logit.mle <- function(par){
+  z <- par[1] + par[2]*oring$Temp
+  Gz <- 1/(1+exp(-z))
+  ll <- -sum(log(dbinom(oring$ero_blo, 6, Gz)))
+  return(ll)
+}
+optimx(par=c(alpha.hat, beta.hat), logit.mle, control=list(maximize=FALSE))
+logit.rslt <- optim(par=c(alpha.hat, beta.hat), logit.mle)
+logit.AIC <- -2*(-logit.rslt$value[1]) + 2*2 
+logit.alpha <- logit.rslt$par[1]
+logit.beta <- logit.rslt$par[2]
+
+paste("yi ~ Binom(ni, ", round(logit.alpha,4), "+(", round(logit.beta,4), ")*xi)", sep="")
+
+# probit link
+# 먼저 초기값 설정을 위해 최소제곱추정법을 이용
+probit.glm <- glm(cbind(ero_blo, 6-ero_blo) ~ Temp, data = oring, family=binomial(link="probit"))
+alpha.hat <- summary(probit.glm)$coef[1]
+beta.hat <- summary(probit.glm)$coef[2]
+
+# MLE로 파라미터 추정
+probit.mle <- function(par){
+  z <- par[1] + par[2]*oring$Temp
+  Gz <- dnorm(z, 0, 1)
+  ll <- -sum(log(dbinom(oring$ero_blo, 6, Gz)))
+  return(ll)
+}
+optimx(par=c(alpha.hat, beta.hat), probit.mle, control=list(maximize=FALSE))
+probit.rslt <- optim(par=c(alpha.hat, beta.hat), probit.mle)
+probit.AIC <- -2*(-probit.rslt$value[1]) + 2*2 
+probit.alpha <- probit.rslt$par[1]
+probit.beta <- probit.rslt$par[2]
+
+paste("yi ~ Binom(ni, ", round(probit.alpha,4), "+", round(probit.beta,4), "*xi)", sep="")
+
+# gompit link
+# 먼저 초기값 설정을 위해 최소제곱추정법을 이용
+gompit.fit <- glm(cbind(ero_blo, 6-ero_blo) ~ Temp, data = oring, family=binomial(link="cloglog"))
+alpha.hat <- summary(gompit.fit)$coef[1]
+beta.hat <- summary(gompit.fit)$coef[2]
+
+# MLE로 파라미터 추정
+gompit.mle <- function(par){
+  z <- par[1] + par[2]*oring$Temp
+  Gz <- 1-exp(-exp(z))
+  ll <- -sum(log(dbinom(oring$ero_blo, 6, Gz)))
+  return(ll)
+}
+optimx(par=c(alpha.hat, beta.hat), gompit.mle, control=list(maximize=FALSE))
+gompit.rslt <- optim(par=c(alpha.hat, beta.hat), gompit.mle)
+gompit.AIC <- -2*(-gompit.rslt$value[1]) + 2*2
+gompit.alpha <- gompit.rslt$par[1]
+gompit.beta <- gompit.rslt$par[1]
+
+paste("yi ~ Binom(ni, ", round(gompit.alpha,4), "+", round(gompit.beta,4), "*xi)", sep="")
+
+df <- data.frame("link_function" =c("logit", "probit", "gompit"), 
+                 "minus_twotimes_LL" = c(-2*(-logit.rslt$value[1]), -2*(-probit.rslt$value[1]), -2*(-gompit.rslt$value[1])), 
+                 "twotimes_p" = c(4, 4, 4), 
+                 "AIC" = c(logit.AIC, probit.AIC, gompit.AIC))
+
+print(df)
+```
+
+#### b.
+```{r}
+gompit0.glm <- glm(cbind(ero_blo, 6-ero_blo) ~ 1, data = oring, family=binomial(link="cloglog"))
+beta0.hat <- summary(gompit0.glm)$coef[1]
+
+# B = 0 모형
+gompit0.mle <- function(par){
+  z <- par[1]
+  Gz <- 1-exp(-exp(z))
+  ll <- -sum(log(dbinom(oring$ero_blo, 6, Gz)))
+  return(ll)
+}
+optimx(par=c(beta0.hat), gompit0.mle, control=list(maximize=FALSE))
+gompit0.rslt <- optim(par=c(beta0.hat), gompit0.mle)
+gompit0.AIC <- -2*(-gompit0.rslt$value[1]) + 2*1
+gompit0.AIC
+
+df <- data.frame("model" =c("H0", "H1"), 
+                 "minus_twotimes_LL" = c(-2*(-gompit0.rslt$value[1]), -2*(-gompit.rslt$value[1])), 
+                 "twotimes_p" = c(2, 4), 
+                 "AIC" = c(gompit0.AIC, gompit.AIC))
+
+print(df)
+# 설명변수 Temp가 있는 모형의 AIC가 훨씬 작다. 따라서 예측 모형으로서 설명변수가 있는 모형을 선택한다.
+```
+
+#### c.
+```{r}
+gompit.rslt <- optim(par=c(alpha.hat, beta.hat), gompit.mle, hessian = TRUE)
+gompit.rslt$hessian # Fisher Information
+V <- solve(gompit.rslt$hessian) # Variance-Covariance Matrix 
+(se <- sqrt(diag(V))) # Standard Error
+b <- gompit.rslt$par
+
+paste("95% C.I for B0: c(", round(b[1]-1.96*se[1],4), ", ", round(b[1]+1.96*se[1],4), ")", sep="")
+
+paste("95% C.I for B1: c(", round(b[2]-1.96*se[2],4), ", ", round(b[2]+1.96*se[2],4), ")", sep="")
+
+```
+
+#### d.
+```{r}
+xstar <- 31
+(zstar <- b[1] + b[2]*xstar)
+(Gzstar <- 1-exp(-exp(zstar))) # p(xstar|θhat) x*=31일 때 고장날 확률
+(Eyxstar <- 6*Gzstar) # E[y|x*] x*=31 고장날 개수
+```
+
+## PART 2. 백혈병 환자 생존확률 예측 
+```{r}
+Leuk <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW4/data/P2.Survival.csv", header=T, na.string="*")
+Leuk$lny <- log(Leuk$weeks)
+Leuk$lnx <- log(Leuk$WBC)
+```
+
+#### a.
+```{r}
+lm.fit <- lm(lny ~ lnx, Leuk)
+(alpha.hat <- summary(lm.fit)$coef[1])
+(beta.hat <- summary(lm.fit)$coef[2])
+
+plot(lny ~ lnx, Leuk)
+abline(lm(lny ~ lnx, Leuk), col=2)
+
+Leuk$resi <- lm.fit$residuals # ei
+Leuk$pr <- rank(Leuk$resi)/(nrow(Leuk)+1)
+Leuk$norm_x <- qnorm(Leuk$pr, 0, 1)
+Leuk$gompertz_x <- log(-log(1-Leuk$pr))
+
+library(ggplot2)
+p1 <- ggplot(Leuk, aes(x=norm_x, y=resi)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(resi ~ norm_x, Leuk))$r.squared,4)*100, "%", sep = "")) + theme_light()
+p2 <- ggplot(Leuk, aes(x=gompertz_x, y=resi)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(resi ~ gompertz_x, Leuk))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+library(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+
+# εi ~ Normal(0, sigma), 즉 오차는 정규분포를 따른다.
+```
+
+#### b.
+```{r}
+(sigma.hat <- summary(lm(resi ~ norm_x, Leuk))$coef[2]) # 초기값으로 이용
+
+lognormal.mle <- function(par){
+  ll <- -sum(log(dnorm(Leuk$lny, mean=par[1] + par[2]*Leuk$lnx, sd=par[3])))
+  return(ll)
+}
+lognormal.rslt <- optim(par=c(alpha.hat, beta.hat, sigma.hat), lognormal.mle)
+alpha.n.mle <- lognormal.rslt$par[1]; beta.n.mle <- lognormal.rslt$par[2]; sigma.n.mle <- lognormal.rslt$par[3]
+cbind(alpha.n.mle, beta.n.mle, sigma.n.mle)
+
+lognormal.AIC <- round(-2*(-lognormal.rslt$value[1]) + 2*length(lognormal.rslt$par),4)
+paste("AIC: ", lognormal.AIC, sep="")
+```
+
+#### c.
+```{r}
+(sigma.hat <- summary(lm(resi ~ gompertz_x, Leuk))$coef[2]) # 초기값으로 이용
+
+loggompertz.mle <- function(par){
+  z <- (Leuk$lny - par[1] - par[2]*Leuk$lnx)/par[3]
+  gz <- exp(-exp(z))*exp(z)*(1/par[3])
+  ll <- -sum(log(gz))
+  return(ll)
+}
+# z = e/σ = (a + b*lnx)/σ 로 두고 
+# 곰페르츠 분포를 미분해서 pdf를 구하면 -exp(-exp(z))*(-exp(z))*(1/σ) => exp(-exp(z))*exp(z)*(1/σ)
+
+# 참고) log 취하면 - exp(e) + e - log(σ)
+
+# σe = a + b*z => e = (a + b*z)/σ 
+# 곰페르츠 분포를 미분해서 pdf를 구하면 -exp(-exp(e))*(-exp(e))*σ => exp(-exp(e))*exp(e)*(1/σ)
+# 참고) log 취하면 - exp(e) + e - log(σ)
+
+loggompertz.rslt <- optim(par=c(alpha.hat, beta.hat, sigma.hat), loggompertz.mle, hessian = TRUE)
+loggompertz.rslt
+alpha.g.mle <- loggompertz.rslt$par[1]; beta.g.mle <- loggompertz.rslt$par[2]; sigma.g.mle <- loggompertz.rslt$par[3]
+cbind(alpha.g.mle, beta.g.mle, sigma.g.mle)
+
+loggompertz.AIC <- round(-2*(-loggompertz.rslt$value[1]) + 2*length(loggompertz.rslt$par),4)
+paste("AIC: ", loggompertz.AIC, sep="")
+```
+
+#### d.
+```{r}
+V <- solve(loggompertz.rslt$hessian) # Variance-Covariance Matrix 
+(se <- sqrt(diag(V))) # Standard Error
+b <- loggompertz.rslt$par
+
+paste("95% C.I for alpha: c(", round(b[1]-1.96*se[1],4), ", ", round(b[1]+1.96*se[1],4), ")", sep="")
+
+paste("95% C.I for beta: c(", round(b[2]-1.96*se[2],4), ", ", round(b[2]+1.96*se[2],4), ")", sep="")
+
+paste("95% C.I for sigma: c(", round(b[3]-1.96*se[3],4), ", ", round(b[3]+1.96*se[3],4), ")", sep="")
+
+```
+
+#### e.
+```{r}
+df <- data.frame("model" =c("log-normal", "log-Gompertz"), 
+                 "minus_twotimes_LL" = c(-2*(-lognormal.rslt$value[1]), -2*(-loggompertz.rslt$value[1])), 
+                 "twotimes_p" = c(6, 6), 
+                 "AIC" = c(lognormal.AIC, loggompertz.AIC))
+
+print(df)
+# (최소제곱법 결과와 마찬가지로) log-normal 모형이 더 적절하다.
+```
+
+#### f.
+```{r}
+surv.norm <- function(t){
+  mhat <- alpha.n.mle + beta.n.mle*log(20)
+  return(1-pnorm((log(t) - mhat)/sigma.n.mle))
+}
+
+surv.gom <- function(t){
+  mhat <- alpha.g.mle + beta.g.mle*log(20)
+  Gz <- 1 - exp(-exp((log(t) - mhat)/sigma.g.mle))
+  return(1-Gz)
+}
+
+df <- data.frame("t" = c(52, 104, 260), 
+                 "log-normal" = c(surv.norm(52), surv.norm(104), surv.norm(260)), 
+                 "log-Gompertz" = c(surv.gom(52), surv.gom(104), surv.gom(260)))
+print(df)
+
+# t(50, 300) 그림 그려보면
+surv.norm.df <- data.frame(x=c(50:300), surv.prob = surv.norm(50:300))
+surv.gom.df <- data.frame(x=c(50:300), surv.prob = surv.gom(50:300))
+plot(surv.prob ~ x, surv.norm.df, type='l', col=2, main="Survival Probability Prediction Plot for WBC=20")
+lines(surv.prob ~ x, surv.gom.df, type='l', col=3)
+legend(130, 0.205, legend=c("norm", "gompertz"), col=2:3, lty=1)
+
+# WBC가 약 110 이전일 때 오차항 정규가정한 모델이 생존 확률을 더 낮게 측정한다. 그러나 오차항 곰파르츠가정한 모델이 생존 확률 감소 속도가 더 빨라서 WBC가 약 110 이상이면 생존 확률을 더 낮게 책정한다.
+```
+
+## PART 3. Weibull Q-Q plot 을 이용한 강철/면화 강도 분포찾기
+
+```{r}
+library(ggplot2)
+table1 <- data.frame(x = c(seq(32,40,1),42),
+                 expected = c(10,36,84,150,224,291,340,369,383,389),
+                 observed = c(10,33,81,161,224,289,336,369,383,389),
+                 normal = c(8,28,71,141,225,301,351,376,386,388))
+table1$n[1] <- 10
+table1$n[2:10] <- table1$observed[2:10] - table1$observed[1:9]
+
+
+table3 <- data.frame(x=seq(1,16,1),
+                 expected = c(118,646,1232,1751,2161,2461,2667,2802,2886,2937,2966,2982,2991,2996,2999,3000),
+                 observed = c(177,667,1219,1729,2153,2465,2664,2813,2887,2933,2962,2985,2991,2995,2999,3000),
+                 type = c(127,659,1255,1777,2184,2480,2683,2816,2899,2949,2978,2994,3003,3007,3009,3010))
+
+table3$n[1] <- 177
+table3$n[2:16] <- table3$observed[2:16] - table3$observed[1:15]
+
+p1 <- ggplot(table1) + geom_histogram(aes(x,n), stat = "identity") + labs(title = "Histogram of Table1") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+
+p2 <- ggplot(table3) + geom_histogram(aes(x,n), stat = "identity") + labs(title = "Histogram of Table2") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+
+library(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+
+# EVD
+# Table1 (정규분포와 비슷한 분포들 이용)
+# Table3 (극값 분포 이용)
+```
+
+#### b.
+```{r}
+library(rmutil)
+table1$logn <- log(table1$n)
+table1$pr <- cumsum(table1$n)/(sum(table1$n)+1)
+table1$norm_x <- qnorm(table1$pr) # ln은 log-normal
+table1$logis_x <- log(table1$pr/(1-table1$pr)) # log-logistic
+table1$laplace_x <- qlaplace(table1$pr)
+table1$t3_x <- qt(table1$pr, df=3)
+table1$t4_x <- qt(table1$pr, df=4)
+table1$t5_x <- qt(table1$pr, df=5)
+table1$exp_x <- -log(1-table1$pr) # ln은 pareto
+table1$gompertz_x <- log(-log(1-table1$pr)) # weibull
+table1$gumbel_x <- -log(-log(table1$pr)) # Freche
+
+norm_x <- ggplot(table1, aes(x=norm_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ norm_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+logis_x <- ggplot(table1, aes(x=logis_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ logis_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+lognorm_x <- ggplot(table1, aes(x=norm_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ norm_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+loglogis_x <- ggplot(table1, aes(x=logis_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ logis_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+laplace_x <- ggplot(table1, aes(x=laplace_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Laplace Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ logis_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+t3_x <- ggplot(table1, aes(x=t3_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: t1 Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ t3_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+t4_x <- ggplot(table1, aes(x=t4_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: t2 Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ t4_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+t5_x <- ggplot(table1, aes(x=t5_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: t3 Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ t5_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+exp_x <- ggplot(table1, aes(x=exp_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Exponential Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ exp_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gompertz_x <- ggplot(table1, aes(x=gompertz_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ gompertz_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gumbel_x <- ggplot(table1, aes(x=gumbel_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gumbel Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ gumbel_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+pareto_x <- ggplot(table1, aes(x=exp_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Pareto Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ exp_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+weibull_x <- ggplot(table1, aes(x=gompertz_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Weibull Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ gompertz_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+Frechet_x <- ggplot(table1, aes(x=gumbel_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Frechet Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ gumbel_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+grid.arrange(norm_x, logis_x, lognorm_x, loglogis_x, ncol=2)
+grid.arrange(laplace_x, t3_x, t4_x, t5_x, ncol=2)
+grid.arrange(exp_x, gompertz_x, gumbel_x, pareto_x, weibull_x, Frechet_x, ncol=2)
+
+# logn ~ Pareto Distribution R.sq = 32.11
+
+lm.fit.pareto <- lm(logn ~ exp_x, table1)
+lm.fit.pareto
+
+# 방법 2)를 이용, a의 초기값을 Grid Search (log(n-a) > 0이려면  n-a >= 1 이어야함 ) 
+R.sq1 <- data.frame(a = seq(1,31,1), rsq = c(1:31))
+for(i in 1:31){
+  R.sq1$rsq[i] <- summary(lm(log(x-R.sq1$a[i]) ~ gompertz_x, data = table1))$r.sq
+}
+(R.sq1$a[which.max(R.sq1$rsq)])
+
+R.sq2 <- data.frame(a = seq(29,30.9,0.1), rsq = c(1:20))
+for(i in 1:20){
+  R.sq2$rsq[i] <- summary(lm(log(x-R.sq2$a[i]) ~ gompertz_x, data = table1))$r.sq
+}
+(a.hat.1 <- R.sq2$a[which.max(R.sq2$rsq)])
+
+mu.hat.1 <- summary(lm(log(x-a.hat.1) ~ gompertz_x, data = table1))$coef[1]
+sigma.hat.1 <- summary(lm(log(x-a.hat.1) ~ gompertz_x, data = table1))$coef[2]
+cbind(mu.hat.1, sigma.hat.1)
+
+b.hat.1 <- exp(mu.hat.1); alpha.hat.1 <- 1/sigma.hat.1
+cbind(a.hat.1, alpha.hat.1, b.hat.1)
+
+ggplot(table1, aes(x=gompertz_x, y=log(x-a.hat.1))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: (reshaped) Weibull Distribution", subtitle = paste("R.sq = ", round(summary(lm(log(x-a.hat.1) ~ gompertz_x, table1))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+
+# Table3 (극값 분포 이용)
+table3$logn <- log(table3$n)
+table3$pr <- cumsum(table3$n)/(sum(table3$n)+1)
+table3$norm_x <- qnorm(table3$pr) # ln은 log-normal
+table3$exp_x <- -log(1-table3$pr) # ln은 pareto
+table3$logis_x <- log(table3$pr/(1-table3$pr)) # log-logistic
+table3$gompertz_x <- log(-log(1-table3$pr)) # weibull
+table3$gumbel_x <- -log(-log(table3$pr)) # Frechet
+
+norm_x <- ggplot(table3, aes(x=norm_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ norm_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+exp_x <- ggplot(table3, aes(x=exp_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Exponential Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ exp_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+logis_x <- ggplot(table3, aes(x=logis_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ logis_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gompertz_x <- ggplot(table3, aes(x=gompertz_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ gompertz_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gumbel_x <- ggplot(table3, aes(x=gumbel_x, y=n)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gumbel Distribution", subtitle = paste("R.sq = ", round(summary(lm(n ~ gumbel_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+lognorm_x <- ggplot(table3, aes(x=norm_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ norm_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+pareto_x <- ggplot(table3, aes(x=exp_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Pareto Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ exp_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+loglogis_x <- ggplot(table3, aes(x=logis_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ logis_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+weibull_x <- ggplot(table3, aes(x=gompertz_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Weibull Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ gompertz_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+Frechet_x <- ggplot(table3, aes(x=gumbel_x, y=logn)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Frechet Distribution", subtitle = paste("R.sq = ", round(summary(lm(logn ~ gumbel_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+grid.arrange(norm_x, exp_x, logis_x, gompertz_x, gumbel_x, ncol=3)
+grid.arrange(lognorm_x, pareto_x, loglogis_x, weibull_x, Frechet_x, ncol=3)
+
+# logn ~ Pareto Distribution R.sq = 91.48
+
+# 방법 2)를 이용, a의 초기값을 Grid Search (log(n-a) > 0이려면  n-a >= 1 이어야함 ) 
+R.sq <- data.frame(a = seq(0,0.9,0.01), rsq = c(1:91))
+for(i in 1:91){
+  R.sq$rsq[i] <- summary(lm(log(x-R.sq$a[i]) ~ gompertz_x, data = table3))$r.sq
+}
+(a.hat.3 <- R.sq$a[which.max(R.sq$rsq)])
+
+mu.hat.3 <- summary(lm(log(x-a.hat.3) ~ gompertz_x, data = table3))$coef[1]
+sigma.hat.3 <- summary(lm(log(x-a.hat.3) ~ gompertz_x, data = table3))$coef[2]
+cbind(mu.hat.3, sigma.hat.3)
+
+b.hat.3 <- exp(mu.hat.3); alpha.hat.3 <- 1/sigma.hat.3
+cbind(a.hat.3, alpha.hat.3, b.hat.3)
+
+ggplot(table3, aes(x=gompertz_x, y=log(x-a.hat.3))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: (reshaped) Weibull Distribution", subtitle = paste("R.sq = ", round(summary(lm(log(x-a.hat.3) ~ gompertz_x, table3))$r.squared,4)*100, "%", sep = "")) + theme_light()
+```
+
+#### c.
+```{r}
+library(optimx)
+
+# Table1 MLE로 파라미터 추정
+weibull.mle.1 <- function(par){
+  z <-  ((table1$x - par[1])/par[3])^par[2]
+  F.pareto <- (1 - exp(-z))
+  f.pareto <- diff(c(0,F.pareto))
+  ll <- -sum(table1$n*log(f.pareto))
+  return(ll)
+}
+weibull.rslt.1 <- optim(par=c(a.hat.1, alpha.hat.1, b.hat.1), weibull.mle.1, hessian=TRUE)
+a.hat.1 <- weibull.rslt.1$par[1]
+alpha.hat.1 <- weibull.rslt.1$par[2]
+b.hat.1 <- weibull.rslt.1$par[3]
+cbind(a.hat.1, alpha.hat.1, b.hat.1)
+
+# Table3 MLE로 파라미터 추정
+weibull.mle.3 <- function(par){
+  z <-  ((table3$x - par[1])/par[3])^par[2]
+  F.pareto <- (1 - exp(-z))
+  f.pareto <- diff(c(0,F.pareto))
+  ll <- -sum(table3$n*log(f.pareto))
+  return(ll)
+}
+weibull.rslt.3 <- optim(par=c(a.hat.3, alpha.hat.3, b.hat.3), weibull.mle.3, hessian=TRUE)
+a.hat.3 <- weibull.rslt.3$par[1]
+alpha.hat.3 <- weibull.rslt.3$par[2]
+b.hat.3 <- weibull.rslt.3$par[3]
+cbind(a.hat.3, alpha.hat.3, b.hat.3)
+
+# 장단점: 두 방법 모두 난이도는 비슷하다. 다만, MLE로 구하는 경우 초기값을 잘 설정해야한다는 문제가 있다. 최우추정법으로 구한 모수 추정치는 불편 추정치로 n이 커지면 참값이 된다는 장점이 있다. 
+```
+
+#### d.
+```{r}
+# weibull.rslt.1$hessian # Jn
+V1 <- solve(weibull.rslt.1$hessian) # Variance-Covariance Matrix 
+(se1 <- sqrt(diag(V1))) # Standard Error
+b1 <- weibull.rslt.1$par
+
+paste("95% C.I for a of Table1: c(", round(b1[1]-1.96*se1[1],4), ", ", round(b1[1]+1.96*se1[1],4), ")", sep="")
+paste("95% C.I for alpha of Table1: c(", round(b1[2]-1.96*se1[2],4), ", ", round(b1[2]+1.96*se1[1],4), ")", sep="")
+paste("95% C.I for b of Table1: c(", round(b1[3]-1.96*se1[3],4), ", ", round(b1[3]+1.96*se1[2],4), ")", sep="")
+
+# weibull.rslt.3$hessian # Jn
+V3 <- solve(weibull.rslt.3$hessian) # Variance-Covariance Matrix 
+(se3 <- sqrt(diag(V3))) # Standard Error
+b3 <- weibull.rslt.3$par
+
+paste("95% C.I for a of Table3: c(", round(b3[1]-1.96*se3[1],4), ", ", round(b3[1]+1.96*se3[1],4), ")", sep="")
+paste("95% C.I for alpha of Table3: c(", round(b3[2]-1.96*se3[2],4), ", ", round(b3[2]+1.96*se3[1],4), ")", sep="")
+paste("95% C.I for b of Table3: c(", round(b3[3]-1.96*se3[3],4), ", ", round(b3[3]+1.96*se3[2],4), ")", sep="")
+```
+

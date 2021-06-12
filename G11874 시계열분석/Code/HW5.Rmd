@@ -1,0 +1,84 @@
+---
+title: "HW5"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### 1.
+```{r}
+rv <- read.csv('C:/USER/grad/2020-2/시계열분석/HW5/Won_Dollar_P_RV_r_2006_2012.csv')
+plot(rv$RV, type='l', main = "RV Time Series")
+
+library(forecast)
+bic = c()
+for(p in 1:10){
+  ar.fit = Arima(rv$RV, order = c(p,0,0))
+  bic[p] = ar.fit$bic
+  which.min(bic)
+}
+plot(bic, type='b', main='BIC plot')
+which.min(bic) # p = 6
+
+ar6.fit = Arima(rv$RV, order = c(6,0,0))
+ar6.fit
+```
+
+### 2.
+```{r}
+plot(ar6.fit$residuals, type='l', main='AR(6) Residual Plot') # 그리기
+# Volatility Clustering 존재
+acf(ar6.fit$residuals) # 자기 상관성은 없음
+```
+### 3.
+```{r}
+plot((ar6.fit$residuals)^2, type='l', main='AR(6) Residual^2 Plot')
+acf((ar6.fit$residuals)^2) # 그리기, 약간 존재하는 듯 보이나 검정 필요 
+```
+
+### 4.
+```{r}
+library(fGarch)
+garch.fit <- garchFit(~garch(1,1), ar6.fit$residuals, include.mean= F)
+garch.fit
+```
+
+### 5.
+```{r}
+library(rugarch)
+spec.garch = ugarchspec(variance.model=list(model="sGARCH", garchOrder=c(1,1)),
+                        mean.model=list(armaOrder=c(6,0), include.mean=F), distribution.model="std")
+a.t <- ar6.fit$residuals
+garch.fit2 <- ugarchfit(data = a.t, spec=spec.garch)
+garch.fit2
+
+# at에 대해 자기 상관성 X => Mean Function (=AR(6)) O.K
+# at^2에 대해 자기 상관성 X => Volatility Function (=GARCH(1,1)) O.K
+```
+
+### 6.
+```{r}
+rv.1 = forecast(ar6.fit, h=1)$mean[1]
+sigma.1 = ugarchforecast(garch.fit2, n.ahead=1)@forecast$sigmaFor[1]
+sigma.1
+v = 3.633530
+q.std.v = sqrt(v/(v-2))*qt(0.05,v)
+
+#5% VaR
+rv.1 + q.std.v*sigma.1
+```
+
+### 7.
+```{r}
+spec.egarch = ugarchspec(variance.model = list(model="eGARCH", garchOrder=c(1,1)),
+                        mean.model =list(armaOrder=c(0,0), include.mean=F),
+                        distribution.model="norm")
+egarch.fit = ugarchfit(data=a.t, spec=spec.egarch)
+egarch.fit
+0.12868 + 0.19598 # alpha1 + gamma1 > 0
+0.12868 - 0.19598 # alpha1 - gamma1 < 0
+# 비대칭성 존재
+```
+

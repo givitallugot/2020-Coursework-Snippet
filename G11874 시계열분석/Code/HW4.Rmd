@@ -1,0 +1,83 @@
+---
+title: "HW4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# 1.
+gdp <- read.csv("C:/USER/grad/2020-2/시계열분석/HW4/Kor_GDP_1960_2018.csv")
+gdp$lnGDP <- log(gdp$GDP)
+
+plot(gdp$GDP, type='b', main = "GDP Time Series")
+plot(gdp$lnGDP, type='b', main = "log(GDP) Time Series")
+# 원 계열의 경우 이분산성을 확인 가능, 따라서 로그 변환 필요
+
+# 2.
+library(forecast)
+aic = c()
+for(p in 1:10){
+  ar.fit = Arima(gdp$lnGDP, order = c(p,0,0))
+  aic[p] = ar.fit$aic
+  which.min(aic)
+}
+plot(aic, type='b')
+which.min(aic) # p=3 (추세 있으므로)
+
+# 추세 모형으로 단위근 검정
+library(fUnitRoots)
+adfTest(gdp$lnGDP, type='ct', lags=3)
+# 귀무가설 H0: 확률적 추세 (단위근 존재)
+# 대립가설 H1: 확정적 추세 (단위근 없음)
+
+# DF = -0.7762, p-value = 0.9585
+# > 0.05 => Do not reject H0 (즉 단위근 계열)
+# ARIMA(3,1,0)
+# DF = delta hat / se(delta hat)
+
+# 4.
+d.lnGDP <- diff(gdp$lnGDP)
+acf(d.lnGDP)
+pacf(d.lnGDP)
+# ARIMA(3, 1, 0)
+
+# 5.
+bic = c()
+for(p in 1:10){
+  ar.fit = Arima(gdp$lnGDP, order = c(p,0,0))
+  bic[p] = ar.fit$bic
+  which.min(bic)
+}
+plot(bic, type='b')
+# ARIMA(3,1,0)
+
+# 6.
+# 해당 시계열은 ACF,PACF 방법이나, AIC,BIC 상법이나 결과가 같다.
+
+# 7.
+ar.fit = Arima(gdp$lnGDP, order = c(3,1,0))
+ar.fit
+
+# 8.
+L = c( 4,5,6*c(1,2,3,4) ); Q=c(); p=c()
+for (i in 1:6) {
+  Q[i] = Box.test(ar.fit$residuals, lag=L[i], type='Ljung-Box')$statistic
+  df = L[i] - 3
+  p[i] = 1-pchisq(Q[i], df)
+}
+Portmanteau <- cbind(L,Q,p)
+Portmanteau
+# lag=24까지 기각되지 않음 => ARIMA(3,1,0) 모형 적절
+
+acf(ar.fit$residuals)
+pacf(ar.fit$residuals)
+# White noise 비슷함 => 현재 모형 적절
+
+lngdp.hat <- forecast(ar.fit, h=5)
+plot(lngdp.hat)
+lngdp.hat
+# 예측 기간이 늘어날수록 예측 구간의 폭이 넓어짐 (단위근 없을 때는 lag 이후 일정했으나 확률적 추세가 있기 때문에)
+```

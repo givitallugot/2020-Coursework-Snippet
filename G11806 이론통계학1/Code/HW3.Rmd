@@ -1,0 +1,461 @@
+---
+title: "HW3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### PART1. KOSPI 일별수익률의 VAR(Value at Risk) 계산
+```{r}
+kospi <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW3/data/P1.KOSPI.csv", header=T)
+colnames(kospi) <- c("date", "Pt")
+kospi$Pt1[1] <- 0; kospi$Pt1[2:2466] <- kospi$Pt[1:2465]
+kospi$rt <- log(kospi$Pt) - log(kospi$Pt1); kospi$rt[1] <- 0
+```
+
+###### a.
+```{r}
+hist(kospi$rt, main = "Histogram of rt") # histogram, 정규분포 형태
+
+qqplot(x = qnorm(ppoints(n = 2466)), y = kospi$rt, xlab = "Theoretical Quantiles", ylab = "rt Quantiles", main="Q-Q plot - Normal")
+qqline(kospi$rt, col="2")
+```
+
+###### b.
+```{r}
+library(ggplot2)
+# a의 histogram을 볼 때 대칭이나 평균 부근에 많이 몰려있는 그래프 형태
+
+# Laplace Distribution
+library(rmutil)
+kospi$s_rt <- sort(kospi$rt, decreasing=FALSE)
+ggplot(kospi, aes(x=qlaplace(ppoints(n = 2466)), y=s_rt)) + geom_point(size=2) + geom_smooth(se=FALSE) + labs(title = "Laplace Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(s_rt ~ qlaplace(ppoints(n = 2466)), kospi))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# Logistic Distribution
+ggplot(kospi, aes(x=qlogis(ppoints(n = 2466)), y=s_rt)) + geom_point(size=2) + geom_smooth(se=FALSE) + labs(title = "Logistic Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(s_rt ~ qlogis(ppoints(n = 2466)), kospi))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# T df = 4 Distribution
+ggplot(kospi, aes(x=qt(ppoints(n = 2466), df=4), y=s_rt)) + geom_point(size=2) + geom_smooth(se=FALSE) + labs(title = "T df=4 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(s_rt ~ qt(ppoints(n = 2466), df=4), kospi))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# T df = 5 Distribution
+ggplot(kospi, aes(x=qt(ppoints(n = 2466), df=5), y=s_rt)) + geom_point(size=2) + geom_smooth(se=FALSE) + labs(title = "T df=5 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(s_rt ~ qt(ppoints(n = 2466), df=5), kospi))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# T df = 6 Distribution
+ggplot(kospi, aes(x=qt(ppoints(n = 2466), df=6), y=s_rt)) + geom_point(size=2) + geom_smooth(se=FALSE) + labs(title = "T df=6 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(s_rt ~ qt(ppoints(n = 2466), df=6), kospi))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# 가장 적절한 분포는 T(df=5)
+# Y = Mu + sigma*X
+kospi$s_rt[1:10]
+
+lm.fit <- lm(s_rt ~ qt(ppoints(n = 2466), df=5), kospi)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+
+mu.hat
+sigma.hat
+
+# Value at Risk (VAR)
+VaR <- data.frame(alpha = c(0.01, 0.04, 0.001, 0.0004), var = c(1, 1, 1, 1))
+VaR$var <- mu.hat + sigma.hat*(-qt(VaR$alpha, df=5))
+VaR
+```
+
+###### c. 방법1
+```{r}
+Tail <- kospi[kospi$rt < -0.03,]
+Tail$X <- (-Tail$rt) - 0.03
+
+s_Tail <- data.frame(s_X = sort(Tail$X, decreasing = FALSE)) # sorted X = Loss - 0.03
+m <- nrow(s_Tail)
+s_Tail$pr <- rank(s_Tail$s_X)/(m+1)
+
+# intercept 없는 회귀
+s_Tail$lnx <- -log(1-s_Tail$pr) # 설명변수는 변수로 만들어야 R-square 값이 제대로 출력됨
+
+# a = 0.01 / R-sq = 98.42
+ggplot(s_Tail, aes(x=lnx, y=log(1 + (s_X/0.01)))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "a = 0.01 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(log(1 + (s_X/0.01)) ~ lnx + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# a = 0.05 / R-sq = 99.15
+ggplot(s_Tail, aes(x=lnx, y=log(1 + (s_X/0.05)))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "a = 0.05 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(log(1 + (s_X/0.05)) ~ lnx + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# a = 0.01 / R-sq = 98.88
+ggplot(s_Tail, aes(x=lnx, y=log(1 + (s_X/0.1)))) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "a = 0.01 Q-Q Plot", subtitle = paste("R.sq = ", round(summary(lm(log(1 + (s_X/0.1)) ~ lnx + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# a = 0.05 부근에서 R-sq 조금 더 확인
+round(summary(lm(log(1 + (s_X/0.02)) ~ lnx + 0, s_Tail))$r.squared,4)*100
+round(summary(lm(log(1 + (s_X/0.03)) ~ lnx + 0, s_Tail))$r.squared,4)*100 # local max R-sq = 99.25
+round(summary(lm(log(1 + (s_X/0.04)) ~ lnx + 0, s_Tail))$r.squared,4)*100
+round(summary(lm(log(1 + (s_X/0.05)) ~ lnx + 0, s_Tail))$r.squared,4)*100
+
+# 최종 a = 0.03 이용
+lm.fit <- lm(log(1 + (s_X/0.03)) ~ lnx + 0, s_Tail)
+summary(lm.fit)$r.squared
+gamma.hat <- summary(lm.fit)$coef[1]
+gamma.hat
+sigma.hat <- 0.03*gamma.hat
+sigma.hat
+# a = 0.03, gamma = 0.279926, sigma = 0.008397781 # r-sq = 99.25
+```
+
+###### c. 방법2.
+```{r}
+# gamma = 0.1 # R-sq = 98.82
+gamma.set <- 0.1
+s_Tail$in.gamma <- ((1-s_Tail$pr)^(-gamma.set)-1)/gamma.set
+ggplot(s_Tail, aes(x=in.gamma, y=s_X)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = paste("gamma = ", gamma.set, " Q-Q plot"), subtitle = paste("R.sq = ", round(summary(lm(s_X ~ in.gamma + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# gamma = 0.2 # R-sq = 99.01
+gamma.set <- 0.2
+s_Tail$in.gamma <- ((1-s_Tail$pr)^(-gamma.set)-1)/gamma.set
+ggplot(s_Tail, aes(x=in.gamma, y=s_X)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = paste("gamma = ", gamma.set, " Q-Q plot"), subtitle = paste("R.sq = ", round(summary(lm(s_X ~ in.gamma + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# gamma = 0.3 # R-sq = 98.84
+gamma.set <- 0.3
+s_Tail$in.gamma <- ((1-s_Tail$pr)^(-gamma.set)-1)/gamma.set
+ggplot(s_Tail, aes(x=in.gamma, y=s_X)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = paste("gamma = ", gamma.set, " Q-Q plot"), subtitle = paste("R.sq = ", round(summary(lm(s_X ~ in.gamma + 0, s_Tail))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+Rsq <- data.frame(gamma.set = seq(0.15, 0.25, 0.01), rsq = 0)
+i = 1
+for (gamma.set in seq(0.15, 0.25, 0.01)) {
+  s_Tail$in.gamma <- ((1-s_Tail$pr)^(-gamma.set)-1)/gamma.set
+  Rsq[i,2] <- summary(lm(s_X ~ in.gamma + 0, s_Tail))$r.squared
+  i = i + 1
+}
+Rsq[which.max(Rsq$rsq),1]; max(Rsq$rsq)
+
+# r(gamma) hat = 0.2, R-sq = 99.01
+gamma.set <- 0.2
+s_Tail$in.gamma <- ((1-s_Tail$pr)^(-gamma.set)-1)/gamma.set
+lm.fit <- lm(s_X ~ in.gamma + 0, s_Tail)
+sigma.hat <- summary(lm.fit)$coef[1]
+sigma.hat 
+# sigma hat = 0.009184764
+```
+
+###### c. 방법3.
+```{r}
+library(qrmtools)
+
+mle <- function(par){
+  ll <- -sum(log(dGPD(s_Tail$s_X, shape=par[1], scale=par[2])))
+  return(ll)
+}
+result.mle <- optim(par=c(0.279926, 0.008397781), mle)
+result.mle
+# gamma hat = -0.02637430 sigma hat = 0.01005782
+```
+
+### PART2. 인간의 수명분포 추정
+###### a.
+```{r}
+drate <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW3/data/P2.DEATH RATE.csv", header=T)
+
+# a)
+library(ggplot2)
+str(drate)
+ggplot(drate, aes(x = 연령, y = 사망자수)) + geom_bar(aes(fill = 성별), position = "dodge",stat="identity") + labs(title = "연령별 사망자수") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) 
+
+# 10대의 사망자수는 남녀 모두 낮다. 남녀 모두 75세 전후로 사망자수가 급격히 증가하며 80세 이전까지는 전반적으로 남자의 사망자수가 높아보이지만 바 그래프 내부 면적을 비교해봤을 때 남자의 인구가 더 많다는 점을 고려해야 한다. 여자 그래프의 피크가 남자 그래프의 피크보다 조금 더 오른쪽에 있어 평균적으로 여자가 조금 더 오래 산다고 볼 수 있다.
+```
+
+```{r}
+# b)
+drate_M <- drate[drate$성별 == "남자",]; drate_F <- drate[drate$성별 == "여자",]
+for(i in 1:nrow(drate_M)){
+  drate_M$pr[i] <- sum(drate_M$사망자수[1:i])/(sum(drate_M$사망자수) + 252) # 252 = 남자 100세 이후 사망자
+  drate_F$pr[i] <- sum(drate_F$사망자수[1:i])/(sum(drate_F$사망자수) + 1415) # 1415 = 여자 100세 이후 사망자
+}
+drate_M$gompertz_x <- log(-log(1-drate_M$pr))
+drate_F$gompertz_x <- log(-log(1-drate_F$pr))
+row.names(drate_F) <- NULL
+
+ggplot(drate_M, aes(x=gompertz_x, y=사망자수)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Male Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(사망자수 ~ gompertz_x, drate_M))$r.squared,4)*100, "%", sep = "")) + theme_light()
+ggplot(drate_F, aes(x=gompertz_x, y=사망자수)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Female Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(사망자수 ~ gompertz_x, drate_F))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+# 직선에 가깝지 않다. R-sq 값도 45.48%, 58.51%로 낮다.
+
+# 모수 추정
+lm.fit <- lm(사망자수 ~ gompertz_x, drate_M)
+mu.hat_M <- summary(lm.fit)$coef[1]
+sigma.hat_M <- summary(lm.fit)$coef[2]
+cbind(mu.hat_M, sigma.hat_M)
+
+lm.fit <- lm(사망자수 ~ gompertz_x, drate_F)
+mu.hat_F <- summary(lm.fit)$coef[1]
+sigma.hat_F <- summary(lm.fit)$coef[2]
+cbind(mu.hat_F, sigma.hat_F)
+```
+
+
+```{r}
+# c)
+# 99세 lx, qx, Mx, lnMx가 NA가 되지 않도록 100세 이상을 포함한다
+for(i in 1:nrow(drate_M)){
+  drate_M$lx[i] <- sum(drate_M$사망자수[i:100])
+  drate_M$qx[i] <- drate_M$사망자수[i]/drate_M$lx[i]
+  drate_M$Mx[i] <- drate_M$사망자수[i]/(drate_M$lx[i]-(drate_M$사망자수[i]/2)) # 1/2로 이산 보정
+  drate_M$lnMx <- log(drate_M$Mx)
+}
+drate_M$사망자수[1]/154060
+
+for(i in 1:nrow(drate_F)){
+  drate_F$lx[i] <- sum(drate_F$사망자수[i:100])
+  drate_F$qx[i] <- drate_F$사망자수[i]/drate_F$lx[i]
+  drate_F$Mx[i] <- drate_F$사망자수[i]/(drate_F$lx[i]-(drate_F$사망자수[i]/2))
+  drate_F$lnMx <- log(drate_F$Mx)
+}
+
+new_drate <- rbind(drate_M, drate_F)
+ggplot(new_drate, aes(x = 연령, y = Mx)) + geom_bar(aes(fill = 성별), position = "dodge",stat="identity") + labs(title = "연령별 사망률") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) 
+ggplot(new_drate, aes(x = 연령, y = Mx)) + geom_line(aes(color = 성별)) + labs(title = "연령별 사망률") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) 
+
+ggplot(new_drate, aes(x = 연령, y = lnMx)) + geom_bar(aes(fill = 성별), position = "dodge",stat="identity") + labs(title = "연령별 로그 사망률") + theme_bw() + theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5)) 
+# Mx는 x세인 생존자 수 대비 사망자 수를 의미한다. 이 비율은 남녀 모두 지수적으로 증가하는 패턴을 볼 수 있다. 전반적으로 남자가 여자에 비해 사망률이 높다.
+# lnMx는 100세에 가까이 갈 때 0에 가까워지는데 이는 x세 연령에 생존자 수와 사망자 수의 비율이 거의 1:1로 다가간다는 의미이다. (ln1 > 0, 즉 Mx > 1)
+
+# lnMx = a + bx, x>20
+drate20_M <- drate_M[drate_M$연령 > 20, ]
+drate20_F <- drate_F[drate_F$연령 > 20, ]
+
+lm.fit <- lm(lnMx ~ 연령, drate20_M)
+summary(lm.fit)
+a.hat_M <- summary(lm.fit)$coef[1]
+b.hat_M <- summary(lm.fit)$coef[2]
+cbind(a.hat_M, b.hat_M)
+
+lm.fit <- lm(lnMx ~ 연령, drate20_F)
+summary(lm.fit)
+a.hat_F <- summary(lm.fit)$coef[1]
+b.hat_F <- summary(lm.fit)$coef[2]
+cbind(a.hat_F, b.hat_F)
+
+# 남자 여자 R-sq값이 각각 99.10%, 97.03%으로 연령별 사망률이 Gompertz 법칙을 따른다고 볼 수 있다. 남자, 여자 모두 b hat이 양수로 연령이 증가하면 로그 사망률이 증가한다고 볼 수 있으며 남자보다 여자의 b hat이 0.01 더 높아서 연령이 한 단위 증가할 때 로그 사망률 증가폭이 조금 더 크다.
+```
+
+### PART3. 기상변수 극값(최대값) 분포 및 100-년 홍수값 계산
+```{r}
+# PART 3.
+precip <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW3/data/P3.PRECIPITATION.csv", header=T)
+flood <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW3/data/P3.FLOOD.csv", header=T) # 단위: mm
+
+# 범위는 1971 - 2016으로 통일
+# flood 데이터에 1994년이 빠져있어서 서울 열린데이터 광장 > 서울시 자연재난 발생현황 통계
+# https://data.seoul.go.kr/dataList/307/S/2/datasetView.do;jsessionid=281628B3804DF022E922C0931EA567E3.new_portal-svr-11 이용 (3700)
+```
+
+###### a.
+```{r}
+library(forecast)
+precip_ts <- ts(precip$일최다강수량, freq=1, start = c(1971))
+plot(precip_ts, main = "일최다강수량 시계열 도표")
+hist(precip_ts, main = "일최다강수량 히스토그램")
+```
+
+###### b.
+```{r}
+precip$pr <- rank(precip$일최다강수량)/(nrow(precip)+1)
+precip$gumbel_x <- -log(-log(precip$pr))
+
+library(ggplot2)
+ggplot(precip, aes(x=gumbel_x, y=일최다강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gumbel Distribution", subtitle = paste("R.sq = ", round(summary(lm(일최다강수량 ~ gumbel_x, precip))$r.squared,4)*100, "%", sep = "")) + theme_light()
+# R-sq가 굉장히 높은 편
+lm.fit <- lm(일최다강수량 ~ gumbel_x, precip)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+cbind(mu.hat, sigma.hat)
+```
+
+###### c.
+```{r}
+T = c(50, 100, 200)
+P <- 1-1/T
+new_precip <- data.frame(gumbel_x = -log(-log(P)))
+uT1 <- rbind(T,predict(lm.fit, new_precip)) #uT: 평균 T년에 한번 초과하는 일최다강수량
+uT1
+```
+
+###### d.
+```{r}
+flood[flood$홍수피해액==0,"년도"]
+flood <- flood[!flood$홍수피해액==0,] # log = -INF 제외
+precip <- precip[!precip$년도 %in% c(2007, 2015),]
+flood$로그홍수피해액 <- log(flood$홍수피해액) # 총 피해액이 0이면 로그홍수피해액도 0으로
+plot(flood$로그홍수피해액 ~ precip$일최다강수량, main = "홍수 피해액과 연최다강수량의 산점도")
+abline(lm(flood$로그홍수피해액 ~ precip$일최다강수량), col=2)
+
+lm.fit <- lm(flood$로그홍수피해액 ~ precip$일최다강수량)
+summary(lm.fit)
+a.hat <- summary(lm.fit)$coef[1]
+b.hat <- summary(lm.fit)$coef[2]
+cbind(a.hat, b.hat)
+# 일최다강수량의 P-value < 0.05이므로 reject H0: B1 = 0 (일최다강수량 계수가 0)
+# 따라서 일최다강수량이 홍수 피해액 모집단 평균을 예측하는데 도움이 되며,
+# 이때 계수 B1의 추정치는 0.0393으로 양수이기 때문에 일최다강수량이 한 단위 증가할 때 로그홍수피해액이 0.0393만큼 증가한다고 볼 수 있다.
+```
+
+###### e.
+```{r}
+flood_ts <- ts(flood$홍수피해액, freq=1, start = c(1971))
+plot(flood_ts, main = "홍수피해액 시계열 도표")
+hist(flood_ts, main = "홍수피해액 히스토그램")
+
+flood_lnts <- ts(flood$로그홍수피해액, freq=1, start = c(1971))
+plot(flood_lnts, main = "로그홍수피해액 시계열 도표")
+hist(flood_lnts, main = "로그홍수피해액 히스토그램")
+
+flood$pr <- rank(flood$로그홍수피해액)/(nrow(flood)+1) #yt의 분포를 추정, gumbel에 로그를 씌우면 frechet이 되므로 lny를 이용
+flood$frechet_x <- -log(-log(flood$pr))
+ggplot(flood, aes(x=frechet_x, y=로그홍수피해액)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Frechet Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그홍수피해액 ~ frechet_x, flood))$r.squared,4)*100, "%", sep = "")) + theme_light()
+lm.fit <- lm(로그홍수피해액 ~ frechet_x, flood)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+cbind(mu.hat, sigma.hat)
+
+# 최종적으로,
+alpha.hat <- 1/sigma.hat
+b.hat <- exp(mu.hat)
+cbind(alpha.hat, b.hat)
+# Y ~ exp(-(38079.11/yt)^0.3455) : yt를 Frechet 분포로 추정
+# X = lnY ~ exp(-e^(-(lnyt-10.5474)/2.8946)) : lnyt를 Gumbel 분포로 추정
+```
+
+### PART 4. EVT에  근거한 추론의 타당성 검토
+```{r}
+# xt = a + bt + et, et~Gumbel(M, sigma)
+# then, E[xt] = Mt = a + bt + M
+
+maxpre <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW3/data/P4.서울최대강우량.csv", header=T)
+maxpre$최대강수량 <- as.numeric(as.character(maxpre$최대강수량))
+maxpre <- maxpre[complete.cases(maxpre$최대강수량),]
+maxpre2019 <- maxpre[238,]
+maxpre <- maxpre[1:237,]
+row.names(maxpre) <- NULL
+  
+maxpre_pa <- maxpre[maxpre$과거여부==1, ] # past
+maxpre_pr <- maxpre[maxpre$과거여부==2, ] # present
+```
+
+###### a.
+```{r}
+library(forecast)
+maxpre_pa_ts <- ts(maxpre_pa$최대강수량, freq=1, start = c(1777))
+plot(maxpre_pa_ts, main = "연별최대강수량 시계열 도표")
+hist(maxpre_pa_ts, main = "연별최대강수량 히스토그램")
+
+maxpre_pa$로그최대강수량 <- log(maxpre_pa$최대강수량)
+maxpre_pa$pr <- rank(maxpre_pa$최대강수량)/(nrow(maxpre_pa)+1)
+maxpre_pa$norm_x <- qnorm(maxpre_pa$pr) # ln은 log-normal
+maxpre_pa$exp_x <- -log(1-maxpre_pa$pr) # ln은 pareto
+maxpre_pa$logis_x <- log(maxpre_pa$pr/(1-maxpre_pa$pr)) # log-logistic
+maxpre_pa$gompertz_x <- log(-log(1-maxpre_pa$pr)) # weibull
+maxpre_pa$gumbel_x <- -log(-log(maxpre_pa$pr)) # Frechet
+
+norm_x <- ggplot(maxpre_pa, aes(x=norm_x, y=최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(최대강수량 ~ norm_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+exp_x <- ggplot(maxpre_pa, aes(x=exp_x, y=최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Exponential Distribution", subtitle = paste("R.sq = ", round(summary(lm(최대강수량 ~ exp_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+logis_x <- ggplot(maxpre_pa, aes(x=logis_x, y=최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(최대강수량 ~ logis_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gompertz_x <- ggplot(maxpre_pa, aes(x=gompertz_x, y=최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gompertz Distribution", subtitle = paste("R.sq = ", round(summary(lm(최대강수량 ~ gompertz_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+gumbel_x <- ggplot(maxpre_pa, aes(x=gumbel_x, y=최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gumbel Distribution", subtitle = paste("R.sq = ", round(summary(lm(최대강수량 ~ gumbel_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+lognorm_x <- ggplot(maxpre_pa, aes(x=norm_x, y=로그최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Normal Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그최대강수량 ~ norm_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+pareto_x <- ggplot(maxpre_pa, aes(x=exp_x, y=로그최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Pareto Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그최대강수량 ~ exp_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+loglogis_x <- ggplot(maxpre_pa, aes(x=logis_x, y=로그최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Log-Logistic Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그최대강수량 ~ logis_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+weibull_x <- ggplot(maxpre_pa, aes(x=gompertz_x, y=로그최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Weibull Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그최대강수량 ~ gompertz_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+Frechet_x <- ggplot(maxpre_pa, aes(x=gumbel_x, y=로그최대강수량)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Frechet Distribution", subtitle = paste("R.sq = ", round(summary(lm(로그최대강수량 ~ gumbel_x, maxpre_pa))$r.squared,4)*100, "%", sep = "")) + theme_light()
+
+library(gridExtra)
+grid.arrange(norm_x, exp_x, logis_x, gompertz_x, gumbel_x, ncol=3) # Exponential R-sq = 93.4
+grid.arrange(lognorm_x, pareto_x, loglogis_x, weibull_x, Frechet_x, ncol=3) # Log-logistic R-sq = 93.4
+
+# log-logistic 분포로 가정
+lm.fit <- lm(로그최대강수량 ~ logis_x, maxpre_pa)
+summary(lm.fit)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+cbind(mu.hat, sigma.hat)
+# 식: lnxt =  2.4282 + 0.2374$logis_x
+# xt = e(2.2482 + 0.2374$logis_x)
+
+T = c(50, 100, 200)
+P <- (1-1/T)
+new_maxpre_pa <- data.frame(logis_x = log(P/(1-P)))
+rbind(T, predict(lm.fit, new_maxpre_pa)) #lnuT
+uT2 <- rbind(T, exp(predict(lm.fit, new_maxpre_pa))) # uT: 평균 T년에 한번 초과하는 일최대강수량
+uT2
+```
+
+###### b.
+```{r}
+uT1 # 최근
+uT2*10 # 과거, mm단위로 바꾸기
+
+# 과거보다 최근의 최대강수량이 늘어난 것을 확인할 수 있다. 지구온난화가 여름철 강우량을 늘린 것으로 추측해볼 수 있다.
+```
+
+###### c.
+```{r}
+maxpre_ts <- ts(maxpre$최대강수량, freq=1, start = c(1971))
+plot(maxpre_ts, main = "연별최대강수량 시계열 도표 1971-2018")
+hist(maxpre_ts, main = "연별최대강수량 히스토그램 1971-2018")
+
+maxpre$t <- c(1:nrow(maxpre))
+lm.fit <- lm(최대강수량 ~ t, maxpre)
+summary(lm.fit)
+alpha.hat <- summary(lm.fit)$coef[1]
+beta.hat <- summary(lm.fit)$coef[2]
+cbind(alpha.hat, beta.hat)
+```
+
+###### d.
+```{r}
+maxpre$예측최대강수량 <- predict(lm.fit, maxpre)
+maxpre$잔차 <- maxpre$최대강수량 - maxpre$예측최대강수량
+maxpre$잔차pr <- rank(maxpre$잔차)/(nrow(maxpre)+1)
+maxpre$gumbel_et <- -log(-log(maxpre$잔차pr))
+ggplot(maxpre, aes(x=gumbel_et, y=잔차)) + geom_point(size=2) + geom_smooth(method = "lm", se=FALSE) + labs(title = "Q-Q plot: Gumbel Distribution of et", subtitle = paste("R.sq = ", round(summary(lm(잔차 ~ gumbel_et, maxpre))$r.squared,4)*100, "%", sep = "")) + theme_light()
+# R-sq = 97.15%
+
+lm.fit <- lm(잔차 ~ gumbel_et, maxpre)
+summary(lm.fit)
+mu.hat <- summary(lm.fit)$coef[1]
+sigma.hat <- summary(lm.fit)$coef[2]
+cbind(mu.hat, sigma.hat)
+```
+
+###### e.
+```{r}
+# 2019일 때 t = 239
+t2019 <- nrow(maxpre) + 1
+mu2019 <- alpha.hat + beta.hat*t2019 + mu.hat
+u2019 <- (30-mu2019)/sigma.hat
+p2019<- 1-exp(-exp(-u2019))
+p2019
+```
+
+###### f.
+```{r}
+# gumbel
+mle <- function(par){
+  g0 <- function(u){
+    return(exp(-u-(exp(-u))))
+  } 
+  ll <- -sum(log(g0((maxpre$최대강수량-par[1]-par[2]*maxpre$t)/par[3])/par[3]))
+  return(ll)
+}
+result.mle <- optim(par=c(11.22012, 0.01715708, 4.757257), mle) # alpha, beta, sigma
+result.mle
+
+t2019 <- nrow(maxpre) + 1
+mu2019.mle <- result.mle$par[1] + result.mle$par[2]*t2019
+u2019.mle <- (30-mu2019.mle)/result.mle$par[3]
+p2019.mle <- 1-exp(-exp(-u2019.mle))
+p2019.mle
+
+# x2019 값 비교 
+cbind(maxpre2019$최대강수량, mu2019, mu2019.mle)
+# 참값은 6.32이고 (선형회귀모형 + 잔차는 Gumbel)로 적합한 값보다 mle를 이용한 모수 추정으로 적합한 값이 더 가깝다.
+# 회귀 및 mle 모두 분포를 추정하는 과정이 필요하므로 복잡한 정도는 비슷하다. 다만 mle 추정 시 mu는 추정하지 않아도 되었다.
+```
+
+

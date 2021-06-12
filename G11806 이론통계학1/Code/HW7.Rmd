@@ -1,0 +1,349 @@
+---
+title: "HW7"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+library(knitr)
+library(kableExtra)
+```
+
+## Part 1. 아파트 가격 예측 모형
+```{r}
+apart <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW7/apart.csv", header=T)
+
+# a)
+apart$lny <- log(apart$y)
+
+par(mfrow=c(1,2))
+plot(y ~ company, data=apart, main="y ~ company")
+plot(lny ~ company, data=apart, main="lny ~ company")
+
+plot(y ~ year, data=apart, main="y ~ year")
+plot(lny ~ year, data=apart, main="lny ~ year")
+
+plot(y ~ square, data=apart, main="y ~ square")
+plot(lny ~ square, data=apart, main="lny ~ square")
+
+plot(y ~ size, data=apart, main="y ~ size")
+plot(lny ~ size, data=apart, main="lny ~ size")
+
+# Box Tidwell
+Y <- apart$y
+lnY <- apart$lny
+X <- apart[,-c(1,3,8)]
+X$d_com <- as.factor(X$d_com)
+X.y <- X
+X.lny <- X
+library(car)
+boxTidwell(Y ~ square + size, data=apart)
+
+boxTidwell(lnY ~ square, data=apart) # lambda = 0.4
+boxTidwell(lnY ~ size, data=apart) # p-value > 0.05
+
+# 그러나 수행 후 표준화 잔차 그림이 등분산성 만족 X, AIC 더 증가, 도입 X
+
+# b) 
+# company의 level이 너무 많기 때문에 대기업 더미로 가변수(I_com) 도입(현재 아파트 시장에서의 실제 선호도를 반영하여 대기업인 HD사와 SS사가 건설한 경우에 1을 부여)
+X2 <- data.frame("d_com:subway" = apart$d_com*apart$subway,
+                 "d_com:year" = apart$d_com*apart$year,
+                 "d_com:square" = apart$d_com*apart$square,
+                 "d_com:size" = apart$d_com*apart$size,
+                 "subway:year" = apart$subway*apart$year,
+                 "subway:square" = apart$subway*apart$square,
+                 "subway:size" = apart$subway*apart$size,
+                 "year:square" = apart$year*apart$square,
+                 "year:size" = apart$year*apart$size,
+                 "square:size" = apart$square*apart$size)
+X <- cbind(X,X2)
+
+
+# Model 1 - Non Hierachical Method(leaps)
+# leaps package: hierachical principle 만족 X 
+library(leaps)
+reg.F <- regsubsets(Y ~ ., data=X, method="backward")
+reg.which <- summary(reg.F)$which; reg.which <- reg.which[,-1]
+
+AIC.table <- data.frame(k = c(1:8), aic = c(1:8))
+for(i in 1:8) {
+  lm.fit <- lm(Y ~., data=X[reg.which[i,]])
+  AIC.table$aic[i] <- AIC(lm.fit)
+}
+
+par(mfrow=c(1,1))
+plot(aic~k, data=AIC.table, type="b", main="Minimum AIC for each p") 
+# k = 8일 때 Cp가 가장 작음
+# 건축년도와 지하철개수 또한 Model Hierachy를 위해 추가
+
+reg.which[8,2] <- TRUE;
+lm.fit <- lm(Y ~ ., data=X[reg.which[8,]])
+summary(lm.fit)
+-2*logLik(lm.fit) + 2*10 # AIC: 4814.204
+
+
+# Model 2 - Hierachical Method
+
+# Fit the full model (2차 교호작용까지 포함)
+full.model <- lm(Y ~ .*., data= X.y)
+
+# Stepwise regression model
+step.model <- step(full.model, direction = "both", trace=FALSE)
+summary(step.model)
+-2*logLik(step.model) + 2*13 # AIC: 4810.099
+
+# AIC 기준으로 Model 2가 적절, Model Parsimony는 Model 1이 더 낫다. 
+
+# 정규성 및 등분산성 검토
+library(MASS)
+par(mfrow=c(1,2))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot: Model1", ylab="studentized residual", cex.main = 0.75)
+qqline(stdres(lm.fit), col="red", lwd=1)
+
+qqnorm(stdres(step.model), main = "Normal Probability plot: Model2", ylab="studentized residual", cex.main = 0.75)
+qqline(stdres(step.model), col="red", lwd=1)
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat of Model 1", cex.main = 0.75)
+plot(step.model$fitted.values, stdres(step.model), main = "Studentized Residial vs Yhat of Model 2", cex.main = 0.75)
+
+# 최적 예측 모형
+# 두 모델 모두 정규성과 등분산성 가정 만족한다고 볼 수 있음, 예측 모델로는 AIC 기준을 사용하여 Model 2 이용
+# 시세 = 건축년도 + 평수 + 단지규모 + 건설업체*평수 + 건설업체*단지규모 + 지하철개수*건설년도 + 지하철개수*평수 + 지하철개수*단지규모 + 건축년도*평수 + 건축년도*단지규모 + 평수*단지규모
+
+# c)
+# Model 1 - Non Hierachical Method(leaps)
+# leaps package: hierachical principle 만족 X
+library(leaps)
+ln.reg.F <- regsubsets(lnY ~ ., data=X, method="backward")
+ln.reg.which <- summary(ln.reg.F)$which; ln.reg.which <- ln.reg.which[,-1]
+
+AIC.table.ln <- data.frame(k = c(1:8), aic = c(1:8))
+for(i in 1:8) {
+  lm.fit <- lm(lnY ~., data=X[ln.reg.which[i,]])
+  AIC.table.ln$aic[i] <- AIC(lm.fit)
+}
+par(mfrow=c(1,1))
+plot(aic~k, data=AIC.table.ln, type="b", main="Minimum AIC for each p") 
+# k = 8일 때 Cp가 가장 작음
+# 지하철개수 단지규모 또한 Model Hierachy를 위해 추가
+
+ln.reg.which[8,2] <- TRUE; ln.reg.which[8,5] <- TRUE;
+lm.fit <- lm(lnY ~ ., data=X[ln.reg.which[8,]]) # 최종 모형 후보 1
+-2*logLik(lm.fit) + 2*11 + 2*sum(lnY) # AIC: 4742.038 (sigma ln|J| 항을 더해줘야함)
+summary(lm.fit)
+
+# Model 2 - Hierachical Method(stepAIC)
+
+# Fit the full model (2차 교호작용까지 포함)
+full.model <- lm(lnY ~ .*., data = X.lny)
+
+# Stepwise regression model
+step.model <- step(full.model, direction = "both", trace = FALSE)
+summary(step.model)
+logLik(step.model) + 2*10 + 2*sum(lnY) 
+# AIC: 5017.116 (sigma ln|J| 항을 더해줘야함)
+
+# Model 1이 AIC 기준으로 더 적절, Model Parsimony는 Model 2가 더 낫다.
+
+# 정규성 및 등분산성 검토
+par(mfrow=c(1,2))
+qqnorm(stdres(lm.fit), main = "Normal Probability plot: Model1", ylab="studentized residual", cex.main = 0.9)
+qqline(stdres(lm.fit), col="red", lwd=1)
+
+qqnorm(stdres(step.model), main = "Normal Probability plot: Model2", ylab="studentized residual", cex.main = 0.9)
+qqline(stdres(step.model), col="red", lwd=1)
+
+plot(lm.fit$fitted.values, stdres(lm.fit), main = "Studentized Residial vs Yhat of Model 1", cex.main = 0.9)
+plot(step.model$fitted.values, stdres(step.model), main = "Studentized Residial vs Yhat of Model 2", cex.main = 0.9)
+
+# 최적 예측 모형
+# 두 모델 모두 정규성과 등분산성 가정 만족한다고 볼 수 있음(하나 outlier 존재하는 것으로 보임), 예측 모델로는 AIC 기준을 사용하여 Model 1 이용
+# 시세 = 건설업체 + 지하철개수 + 건축년도 + 평수 + 단지규모 + 건설업체*평수 + 지하철개수*단지규모 + 건축년도*평수 + 건축년도*단지규모 + 평수*단지규모
+
+# d)
+# b), c)의 두 최적 예측 모형 중 AIC를 비교하면 logY가 아닌 Y를 종속변수로 하는 모델이 더 낫다.
+# 최적 모형에 따르면 다른 효과가 고정일 때 건설업체가 대기업과 평수의 교호작용이 클수록, 건축년도 최근과 평수 교호작용이 클수록, 평수와 단지규모 교호작용이 클수록 아파트 시세가 올라간다.
+```
+
+
+## Part 2. Antoine Equation / NLSE
+```{r}
+anto <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW7/antoine.csv", header=T)
+anto$lnp <- log(anto$p)
+anto$byT <- 1/anto$T
+
+# a)
+par(mfrow=c(1,2))
+plot(p ~ T, data=anto, main = "Scattor Plot of p & T")
+plot(lnp ~ T, data=anto, main = "Scattor Plot of lnp & T")
+par(mfrow=c(1,2))
+plot(lnp ~ byT, data=anto, main = "Scattor Plot of lnp & 1/T")
+# lnp ~ byT의 산점도가 가장 직선에 가깝다.
+
+
+# b)
+# 방법 1)
+c <- c(-10,0,10,20,30,40,50)
+s <- NULL; n <- nrow(anto)
+for(i in 1:length(c)){
+  Tx <- 1/(anto$T-c[i])
+  lm.fit <- lm(lnp ~ Tx, data=anto)
+  s[i] <- sqrt(sum(residuals(lm.fit)^2)/(n-2))
+}
+chat.1 <- c[which.min(s)] # 40일 때 s가 0.01634으로 가장 작음
+
+Tx <- 1/(anto$T-chat.1)
+lm.fit1 <- lm(lnp ~ Tx, data=anto)
+ahat.1 <- lm.fit1$coef[1]
+bhat.1 <- lm.fit1$coef[2]
+c(ahat.1, bhat.1, chat.1)
+sigma.hat.1 <- sqrt(sum(residuals(lm.fit1)^2)/(n-2))
+
+# 방법 2)
+Tx1 <- 1/anto$T
+Tx2 <- log(anto$p)/anto$T
+lm.fit2 <- lm(lnp ~ Tx1 + Tx2, data=anto)
+alpha <- as.numeric(lm.fit2$coef[1])
+beta <- as.numeric(lm.fit2$coef[2])
+gamma <- as.numeric(lm.fit2$coef[3])
+ahat.2 <- alpha; bhat.2 <- beta + alpha*gamma; chat.2 <- gamma
+theta <- c(ahat.2, bhat.2, chat.2)
+
+X <- matrix(0, nrow = nrow(anto), ncol = 3)
+gn.func <- function(theta, i){
+  ahat.2 <- theta[1]; bhat.2 <- theta[2]; chat.2 <- theta[3]
+  X[,1] <- 1
+  X[,2] <- 1/(anto$T-chat.2)
+  X[,3] <- bhat.2/(anto$T-chat.2)^2
+  zi <- anto$lnp - (ahat.2 + bhat.2/(anto$T-chat.2))
+  z <- matrix(zi, ncol=1)
+  Bhat <- solve(t(X)%*%X)%*%t(X)%*%z; 
+  if(i == 1 | i == 10) { print(Bhat) } # 처음과 마지막 Beta 출력
+  theta <- theta + Bhat
+  return(theta)
+}
+
+for(i in 1:10){
+  theta <- gn.func(theta, i)
+}
+# Beta가 처음에 비해 매우 작아진 것을 알 수 있음.
+theta.hat.2 <- theta # NLSE
+zi <- anto$lnp - (theta.hat.2[1] + theta.hat.2[2]/(anto$T-theta.hat.2[3]))
+(sigma.hat.2 <- sum(zi^2)/(n-3)) # 0.002826605
+
+# c)
+nls.fit <- nls(lnp ~ a + b/(T-c), data = anto, start=list(a=ahat.2, b=bhat.2, c=chat.2)) # initial value
+summary(nls.fit)
+logLik(nls.fit)
+theta.hat.3 <- summary(nls.fit)$coef[,1]
+(sigma.hat.3 <- summary(nls.fit)$sigma^2) # 0.0002826602
+
+# 추정치 비교
+df <- data.frame(Estimate = c('a', 'b', 'c', 'σ^2'), 
+                 SLR = c(round(ahat.1,4), round(bhat.1,4), round(chat.1,4), round(sigma.hat.1,4)),
+                 Gauss_Newton = c(round(ahat.2,4), round(bhat.2,4), round(chat.2,4), round(sigma.hat.2,4)),
+                 NLSE = c(round(theta.hat.3[1],4), round(theta.hat.3[2],4), round(theta.hat.3[3],4), round(sigma.hat.3,4)), 
+                 MLE = c(23.1731, -3993.4097, 38.8648, 0.0002), row.names = NULL)
+
+kable(df) %>% kable_styling(full_width=F)
+
+# a, b, c와 σ^2 추정치는 SLR을 제외한 나머지 세 방법은 비슷하다. SLR의 σ^2 추정치가 상대적으로 크기 때문에, 해당 문제처럼 이미 관계식이 Non Linear로 알려진 경우 SLR을 사용하는 것은 적절치 않음을 확인할 수 있다.
+# σ^2 hat이 가장 작은 방법은 MLE인데, 이는 자유도가 아닌 n으로 잔차제곱합을 나누기 때문이다. 이는 n이 상대적으로 크지 않을 때 불편추정치가 아닐 가능성이 있다.
+
+# d)
+# NLSE 추정치를 이용해서 Steam Table 작성
+new.C <- seq(0,370,by=10)
+new.T <- new.C + 273.15
+bynew.T <- 1/new.T
+p.Gauss_Newton <- exp(ahat.2 + bhat.2/(new.T-chat.2))
+p.NLSE <- exp(theta.hat.3[1] + theta.hat.3[2]/(new.T-theta.hat.3[3]))
+
+df <- data.frame(new.C, new.T, p.Gauss_Newton=round(p.Gauss_Newton,2), p.NLSE=round(p.NLSE,2))
+kable(df) %>% kable_styling(full_width=F) %>% add_footnote(c("* NLSE 추정치 사용"), notation="none")
+
+par(mfrow=c(1,2))
+plot(p.NLSE ~ new.T, main = "new.T vs p.NLSE hat")
+plot(log(p.NLSE) ~ new.T, main = "new.T vs lnp.NLSE hat")
+par(mfrow=c(1,2))
+plot(log(p.NLSE) ~ bynew.T, main = "1/new.T vs lnp.NLSE hat")
+```
+
+## Part 3. Hwaii Tiger Shark 성장 곡선 추정
+```{r}
+par(mfrow=c(1,1))
+shark <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW7/shark.csv", header=T)
+
+# a)
+# Gurlland and Holt (1959), Linear Regression을 이용한 초기 모수(L∞, k) 추정
+# dL(t)/dt = k(L∞ - Lm) + e
+ti <- shark$DAL/365.25
+dL.dt <- (shark$PCL2 - shark$PCL1)/ti
+Lm <- (shark$PCL2 + shark$PCL1)/2
+lm.fit <- lm(dL.dt ~ Lm)
+k.init <- as.numeric(-lm.fit$coef[2])
+L.init <- as.numeric(lm.fit$coef[1]/k.init)
+
+# Von Bertalanffy Growth Model, NLS로 (L∞, k) 추정
+yi <- shark$PCL2; xi <- shark$PCL1
+nls.fit <- nls(yi ~ a-(a-xi)*exp(-b*ti), start=list(a=L.init, b=k.init))
+summary(nls.fit)
+
+L.hat <- summary(nls.fit)$coef[1,1]
+k.hat <- summary(nls.fit)$coef[2,1]
+(sigma.hat <- summary(nls.fit)$sigma) # 11.37028
+
+# b)
+t0 <- log(-(51.5/L.hat)+1)/k.hat
+t <- seq(0,50, by=0.1)
+Lt <- L.hat*(1-exp(-k.hat*(t - t0)))
+plot(t, Lt, type = "l", main = "Von Bertalanffy Growth Curve", lwd=3, col="dark green")
+abline(h=51.5,lty=2); text(15, 67, "t0: 출생 시 PCL = 51.5", cex = 0.8)
+abline(h=L.hat, lty=2); text(40, 270, "L∞: 최대 PCL = 283.36", cex = 0.8)
+
+# c)
+# FEMALE
+F.shark <- shark[shark$Sex == 'F',-1]
+M.shark <- shark[shark$Sex == 'M',-1]
+
+par.func <- function(D){
+  # Gurlland and Holt (1959), dL(t)/dt = k(L∞ - Lm) + e
+  ti <- D$DAL/365.25
+  dL.dt <- (D$PCL2 - D$PCL1)/ti
+  Lm <- (D$PCL2 + D$PCL1)/2
+  lm.fit <- lm(dL.dt ~ Lm)
+  k.init <- as.numeric(-lm.fit$coef[2]); cat('k.init: ', k.init)
+  L.init <- as.numeric(lm.fit$coef[1]/k.init); cat('  L.init: ', L.init)
+  
+  # Von Bertalanffy Growth Model, NLS로 (L∞, k) 추정
+  yi <- D$PCL2; xi <- D$PCL1
+  nls.fit <- nls(yi ~ a-(a-xi)*exp(-b*ti), start=list(a=L.init, b=k.init))
+  
+  L.hat <- summary(nls.fit)$coef[1,1]; cat('  L∞ hat: ', L.hat)
+  k.hat <- summary(nls.fit)$coef[2,1]; cat('  k hat: ', k.hat)
+  (sigma.hat <- summary(nls.fit)$sigma); cat('  σ hat: ', sigma.hat)
+
+  t0 <- log(-(51.5/L.hat)+1)/k.hat; cat('  t0 hat: ', t0) # initial t0
+}
+
+par.func(F.shark)
+par.func(M.shark)
+
+t <- seq(0,50, by=0.1)
+L.hat.F <- 304.2591; k.hat.F <- 0.2815061; t0.F <- -0.6587521; sigma.F <- 10.65628
+Lt.F <- L.hat.F*(1-exp(-k.hat.F*(t - t0.F)))
+
+L.hat.M <- 259.1021; k.hat.M <- 0.5517073; t0.M <- -0.4016603; sigma.M <- 11.45775
+Lt.M <- L.hat.M*(1-exp(-k.hat.M*(t - t0.M)))
+
+# 성장 곡선에 차이 존재. Female Tiger Shark의 평균 최대 길이가 더 크다. 그러나 성장 속도는 Male Tiger Shark가 더 빠르다. 
+df <- data.frame(Estimate = c('L∞', 'k', 'σ'), Both = c(round(L.hat,4), round(k.hat,4), round(sigma.hat,4)),
+                 Female = c(round(L.hat.F,4), round(k.hat.F,4), round(sigma.F,4)), Male = c(round(L.hat.M,4), round(k.hat.M,4), round(sigma.M,4)))
+kable(df) %>% kable_styling(full_width=F)
+
+# Growth Curve
+plot(t, Lt.F, type = "l", main = "Von Bertalanffy Growth Curve", lwd=3, col="red")
+lines(t, Lt.M, type = "l", lwd=3, col="blue")
+abline(h=L.hat.F,lty=2); text(43, 290, "Female L∞: PCL = 304.26", cex = 0.8)
+abline(h=L.hat.M, lty=2); text(37, 248, "Male L∞: PCL = 283.36", cex = 0.8)
+```
+

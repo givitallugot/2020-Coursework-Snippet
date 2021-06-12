@@ -1,0 +1,64 @@
+---
+title: "HW1"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+
+set.seed(1)
+```
+
+
+### 1.
+```{r}
+dat <- read.csv("C:/USER/grad/2020-2/시계열분석/HW1/Won_Dollar_2006_2012.csv")
+dat$rt <- c(NA, diff(log(dat$Pt))) # 맨 앞은 NA, 로그수익율
+
+# 시도표 그리기
+plot(dat$Pt, type='l', main='Timeseries of Pt')
+plot(dat$rt, type='l', main='Timeseries of rt')
+
+# 평균 분산 구하기
+mean(dat$rt, na.rm = TRUE)
+var(dat$rt, na.rm = TRUE)
+
+# ACF, PACF 구하기
+acf(dat$rt[2:1764], 25, main = 'ACF of rt')
+pacf(dat$rt[2:1764], 25, main = 'PACF of rt')
+# rt는 거의 white noise
+```
+
+### 2. 
+```{r}
+n = 500
+a = rnorm(n, 0, 1)
+y = rep(n, 0)
+y[1] = 0
+for (i in 2:n){
+  y[i] = 4 + 0.6*y[i-1] + a[i]
+}
+
+# (1) mu?
+(mu = 4/(1-0.6))
+
+# (2) var?
+1/(1-0.6^2)
+
+# (3)
+y[1] = mu
+plot(y, type='l', main='AR(1) Timeseries')
+
+# (4) ρ1
+0.6
+
+# (5)
+mean(y)
+var(y)
+acf(y)[1]
+
+# (6)
+acf(y, main = 'Sample Acf of y')
+pacf(y, main = 'Sample PAcf of y')
+```
+

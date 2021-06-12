@@ -1,0 +1,282 @@
+---
+title: "HW8_202STG22_주선미"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+library(knitr)
+library(kableExtra)
+
+library(rjags)
+library(runjags)
+```
+
+## Part1. 
+```{r}
+HW <- data.frame(type = c('O', 'A', 'B', 'AB'),
+                 ni = c(176, 182, 60, 17))
+# a)
+# 초기값 MLE
+multinom.mle <- function(par){ #loglikelihood
+  theta1 <- par[1]; theta2 <- par[2]; theta0 <- 1-par[1]-par[2]
+  
+  p0 <- (theta0)^2; p1 <- (theta1^2) + (2*theta1*theta0)
+  p2 <- (theta2^2) + (2*theta2*theta0); p3 <- 2*theta1*theta2
+  
+  P <- c(p0, p1, p2, p3)
+  ll <- -sum(HW$ni*log(P)) # L = pi(theta)^ni의 곱 (i=0:3)
+  return(ll)
+}
+multi.rslt <- optim(par=c(0.2, 0.1), multinom.mle, hessian=TRUE)
+(mle.init <- multi.rslt$par)
+
+# MCMC: Metropolis Algorithm
+M <- 1000
+set.seed(1234)
+
+# uniform prior
+prior.func <- function(theta) { # initial value of theta
+  h <- 2*as.numeric((theta[1]>=0) & (theta[2] >= 0) & (theta[1] + theta[2] <= 1))
+  return(h)
+}
+
+# Likelihood funtion
+multinom.L <- function(par){
+  theta1 <- par[1]; theta2 <- par[2]; theta0 <- 1-par[1]-par[2]
+  
+  p0 <- theta0^2; p1 <- (theta1^2) + (2*theta1*theta0)
+  p2 <- (theta2^2) + (2*theta2*theta0); p3 <- 2*theta1*theta2
+  
+  P <- c(p0, p1, p2, p3)
+  L <- prod(P^HW$ni) # L = pi(theta)^ni의 곱 (i=0:3)
+  return(L)
+}
+
+u <- runif(M-1); z <- matrix(rnorm((M-1)*2), ncol=2); s <- 1/sqrt(sum(HW$ni))
+
+# metropolis algorithm
+
+# prior h(θ) ~ unif(0,1)
+# p(Data|θ) ~ π(multinomial), likelihood
+# proposal ~ N
+
+rslt.mcmc <- data.frame(theta1 = c(mle.init[1], rep(0, 999)), theta2 = c(mle.init[2], rep(0, 999))) 
+for(t in 2:M){
+  theta <- as.numeric(rslt.mcmc[t-1,])
+  theta.star <- theta + s*z[t-1,] # proposal density, 정규분포로부터 난수 생성(표본 추출)
+  a <- min(1, (multinom.L(theta.star)*prior.func(theta.star))/(multinom.L(theta)*prior.func(theta))) # acceptence, a의 확률로 이동(theta.star), 1-a의 확률로 현재상태(theta) 유지
+   # random walk 비교할 값도 random 하게, 어디로 움직일지 모르는 것, -> 0.6, <- 0.4 이더라도 <-로 갈 수 있음. 따라서 runif랑 비교 
+  rslt.mcmc[t,] <- if(u[t-1] > a) { theta } else { theta.star } 
+  # 0과 1 사이의 랜덤한 확률(runif)과 비교하여 1. 만약 acceptance가 1이면 어떤 확률 나오든 이동, 2. acceptance < 1일 때는 랜점 확률과 비교해서 이동할지 현재상태에 있을지 결정
+}
+posterior.df <- data.frame(stat=c("Mean", "SD", "Q0.025", "Q1", "Q2", "Q3", "Q0.975"),
+                           theta1=c(round(mean(rslt.mcmc[,1]),4), round(sd(rslt.mcmc[,1]),4), round(quantile(rslt.mcmc[,1], c(0.025, 0.25, 0.5, 0.75, 0.975)),4)),
+                           theta2=c(round(mean(rslt.mcmc[,2]),4), round(sd(rslt.mcmc[,2]),4), round(quantile(rslt.mcmc[,2], c(0.025, 0.25, 0.5, 0.75, 0.975)),4)))
+# round(posterior.df[,-1], 4)
+kable(posterior.df) %>% kable_styling(full_width=F)
+
+# b)
+V <- solve(multi.rslt$hessian); se <- sqrt(diag(V))
+z0.95 <- qnorm(0.975, 0, 1)
+L <- round(mle.init - z0.95*se,4); U <- round(mle.init + z0.95*se,4)
+
+df <- data.frame(method=c("mle", "bayes|metropolis"),
+                 L1 = c(L[1], round(as.numeric(quantile(rslt.mcmc[,1], 0.025)),4)),
+                 U1 = c(U[1], round(as.numeric(quantile(rslt.mcmc[,1], 0.975)),4)),
+                 L2 = c(L[2], round(as.numeric(quantile(rslt.mcmc[,2], 0.025)),4)),
+                 U2 = c(U[2], round(as.numeric(quantile(rslt.mcmc[,2], 0.975)),4)))
+
+kable(df) %>% kable_styling(full_width=F) %>% add_header_above(c(" ", "95% Interval for theta1" = 2, "95% Interval for theta2" = 2)) %>% add_footnote(c("Credible Interval의 경우 95% 확률로 True가 C.I.에 속한다는 해석이 가능하다.", "Confident interval 이런 해석은 불가능하고 100개의 신뢰구간을 구하면 그 중 95개가 True를 포함한다라고 해석한다.", "Bayes 방법의 신뢰구간이 더 긴데, 이는 MCMC의 반복 수를 늘리면 더 줄어들 것이다."), notation="none")
+
+# c)
+plot(rslt.mcmc[,1], rslt.mcmc[,2], main = "Scattor Plot of theta1 vs theta2")
+# 고르게 분포함을 확인할 수 있다.
+(posterior.mean <- colMeans(rslt.mcmc))
+(mle.init)
+# MCMC 표본으로 구한 theta 평균 추정치와 MLE가 매우 비슷하다.
+
+(posterior.varcov <- cov(rslt.mcmc))
+(V)
+# MCMC 표본으로 구한 분산 공분산 행렬과 MLE hessian 역행렬 또한 매우 비슷하다.
+# => 결과적으로 사후분포가 라플라스 근사 가능하다. p(theta|Data) ~ N(theta, 1/Jn)
+
+# off-diagonal에 위치한 공분산이 매우 작으며 이는 산점도에서도 선형 트랜드 없이 랜덤하게 분포하는 것을 마찬가지로 확인할 수 있다.
+
+```
+
+## Part 2.
+```{r}
+acci <- read.csv('C:/USER/grad/2020-1/G11806 이론통계학1/HW8/Mining-Accidents-CPA.csv')
+attach(acci)
+
+### The model specification
+
+model.pois <- "model{
+# Likelihood: L(a, b, c | Data)
+  for(i in 1:length(y)) {
+    y[i] ~ dpois(mu[i])
+    mu[i] <- exp(a - b*H[i])
+    H[i] <- ifelse(t[i] >= c, 1, 0)
+   }
+# prior distribution for parameters (a, b, c)
+    a ~ dunif(-3,3)
+    b ~ dunif(-3, 3)
+    c ~ dunif(1851, 1962)
+ }"
+
+### Running the model in JAGS
+model.rslt1 <- jags.model(textConnection(model.pois), data = list(y = disasters, t = years), n.chains = 3, n.adapt = 1000)
+update(model.rslt1, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.sample1 <- coda.samples(model.rslt1, variable.names=c("a", "b", "c"), 
+                             n.iter=20000, thin=10)
+
+# a)
+plot(mcmc.sample1)
+# Trace Plot을 보면 여러 초기값에 대해서 mixed 됨, converge함을 확인 가능하다.
+summary(mcmc.sample1)
+autocorr.plot(mcmc.sample1[,3])
+# 자기 상관 거의 없음, 그냥 AR(0)으로 random walk로 보임. ok
+
+# b)
+# 세 pdf 모두 봉우리가 하나인 분포로 mean을 추정값으로 설정하면 적절할 것이다
+mcmc.info1 <- summary(mcmc.sample1)
+
+df.bayes <- data.frame(estimate = mcmc.info1$statistics[,1], L = mcmc.info1$quantiles[,1], U = mcmc.info1$quantiles[,5])
+df.bayes <- round(df.bayes,4)
+kable(df.bayes) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 2, "95% Credible Interval" = 2))
+# c=1890.46이므로 1890년 이후로 포아송 분포의 평균이 바뀐다고 볼 수 있다.
+
+# c)
+pois.mle <- function(par){
+  H <- ifelse(years >= par[3], 1, 0)
+  mu <- exp(par[1] - par[2]*H)
+  ll <- -sum(log(dpois(disasters, mu)))
+}
+pois.rslt <- optim(par=mcmc.info1$statistics[,1], pois.mle, hessian=TRUE)
+
+# Non-Parametric Bootstrap
+library(boot)
+YX <- acci[,-3]
+
+pois.mle.nonp <- function(par, ti, yi){ # 위의 식 못쓰고, 데이터를 넣을 수 있는 function 재정의 필요
+  H <- ifelse(ti >= par[3], 1, 0)
+  mu <- exp(par[1] - par[2]*H)
+  ll <- -sum(log(dpois(yi, mu)))
+  return(ll)
+}
+
+nonp.boot.fn <- function(YX, i) {
+  nonp.rslt <- optim(par=mcmc.info1$statistics[,1], ti = YX[i,1], yi = YX[i,2], pois.mle.nonp, hessian=TRUE)
+  return(nonp.rslt$par)
+}
+boot.out.nonp <- boot(data=YX, statistic = nonp.boot.fn, R=1000)
+
+nonp.boot.ci <- data.frame(lwr=c(1:3), upr=c(1:3)) # Percentile C.I. of non-parametric bootstrap
+for(i in 1:3) {
+  nonp.boot.ci$lwr[i] <- boot.out.nonp$t[rank(boot.out.nonp$t[,i]) == 51,i] #1000*0.05
+  nonp.boot.ci$upr[i] <- boot.out.nonp$t[rank(boot.out.nonp$t[,i]) == 950,i] #1000*0.95
+}
+df.mle <- cbind(pois.rslt$par, nonp.boot.ci); df.mle <- round(df.mle,4); colnames(df.mle) <- c("MLE", "L1", "U2")
+colnames(df.bayes) <- c("Bayes", "L1", "U1")
+df <- cbind(df.bayes, df.mle)
+kable(df) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 2, "95% Credible Interval (Bayes)" = 2, " " = 1, "95% Percentil C.I. (non-par BS)" = 2))
+# 신뢰구간과 추정치는 비슷함
+
+# 장단점
+# Bayes 방법은 사전 정보를 이용할 수 있다는 장점, 그러나 prior가 부정확할 경우, posterior가 왜곡될 수 있음
+# N이 크면 MLE와 Bayes 추정치는 같을 것
+```
+
+## Part 3.
+```{r}
+shark <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW7/shark.csv", header=T)
+ti <- shark$DAL/365.25; yi <- shark$PCL2; xi <- shark$PCL1
+### The model specification
+
+model.norm <- "model{
+# Likelihood: L(a, b, ss | Data)
+  for(i in 1:length(y)) {
+    y[i] ~ dnorm(mu[i], tau) # mean, precision
+    mu[i] <- a - (a - x[i])*exp(-b*t[i])
+   }
+# prior distribution for parameters (a, b, c)
+    a ~ dunif(250,350) # L∞
+    b ~ dunif(0, 1) # k
+    sigma ~ dunif(0, 20)
+    tau <- pow(sigma, -2) # precision = 1/var
+ }"
+
+# 주의) 모델 쓸 때 [i] 잘 붙이고, dnorm하더라도 x를 안적고, mean=, precision= 이런 식으로 옵션도 적으면 안됨. mean, sd가 아니라 mean, precision을 적어야함.
+
+### Running the model in JAGS
+model.rslt2 <- jags.model(textConnection(model.norm), data = list(y = yi, x = xi, t = ti), n.chains = 3, n.adapt = 1000)
+update(model.rslt2, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.sample2 <- coda.samples(model.rslt2, variable.names=c("a", "b", "sigma"), 
+                             n.iter=20000, thin=10)
+
+# a)
+plot(mcmc.sample2)
+# Trace Plot을 보면 여러 초기값에 대해서 mixed 됨, converge함을 확인 가능하다.
+summary(mcmc.sample2)
+autocorr.plot(mcmc.sample2[,3])
+# 자기 상관 거의 없음, 그냥 AR(0)으로 random walk로 보임. ok
+
+# b)
+# 세 pdf 모두 봉우리가 하나인 분포로 mean을 추정값으로 설정하면 적절할 것이다
+mcmc.info2 <- summary(mcmc.sample2)
+
+df.bayes <- data.frame(estimate = mcmc.info2$statistics[,1], L = mcmc.info2$quantiles[,1], U = mcmc.info2$quantiles[,5])
+df.bayes <- round(df.bayes,4)
+kable(df.bayes) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 2, "95% Credible Interval" = 2))
+
+# c)
+library(optimx)
+
+# 초기값 설정
+dL.dt <- (shark$PCL2 - shark$PCL1)/ti
+Lm <- (shark$PCL2 + shark$PCL1)/2
+lm.fit <- lm(dL.dt ~ Lm)
+b.init <- as.numeric(-lm.fit$coef[2])
+a.init <- as.numeric(lm.fit$coef[1]/b.init)
+sigma.init <- summary(lm.fit)$sigma
+  
+norm.ll <- function(par){
+  a <- par[1]; b <- par[2]; sigma <- par[3]
+  ll <- sum(log(dnorm(yi, a-(a-xi)*exp(-b*ti), sigma))) # 최소화하는 것
+}
+
+norm.rslt <- optim(par=c(a.init, b.init, sigma.init), norm.ll, hessian=TRUE, control = list(fnscale = -1))
+
+V <- solve(-norm.rslt$hessian) # - 붙어야함! -sum이 아니라 sum이므로 
+se <- sqrt(diag(V))
+z0.95 <- qnorm(0.975, 0, 1); mle <- norm.rslt$par
+
+df.mle <- data.frame(MLE = mle, L = round(mle - z0.95*se,4), U = round(mle + z0.95*se,4))
+colnames(df.bayes) <- c("Bayes", "L1", "U1")
+df <- cbind(df.bayes, df.mle)
+kable(df) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 2, "95% Credible Interval (Bayes)" = 2, " " = 1, "95% Percentil C.I. (non-par BS)" = 2))
+# 신뢰구간과 추정치는 비슷함
+
+# d)
+t <- seq(0,50, by=0.1)
+L.hat.B <- mcmc.info2$statistics[1,1]; k.hat.B <- mcmc.info2$statistics[2,1];
+t0.bayes <- log(-(51.5/L.hat.B)+1)/k.hat.B; # t0 수정시점
+Lt.B <- L.hat.B*(1-exp(-k.hat.B*(t - t0.bayes)))
+
+L.hat.M <- mle[1]; k.hat.M <- mle[2];
+t0.mle <- log(-(51.5/L.hat.M)+1)/L.hat.M; # t0 수정시점
+Lt.M <- L.hat.M*(1-exp(-k.hat.M*(t - t0.mle)))
+
+plot(t, Lt.B, type = "l", main = "Von Bertalanffy Growth Curve", lwd=2.5, col="red")
+lines(t, Lt.M, type = "l", lwd=2.5, col="blue")
+legend(33, 180, c('Bayes', 'MLE'), col=c('red', 'blue'), lty = c(1,1))
+# 굉장히 겹쳐서 그려진다.
+```
+

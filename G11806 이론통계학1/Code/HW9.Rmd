@@ -1,0 +1,331 @@
+---
+title: "HW9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5)
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(rjags)
+library(runjags)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+```
+
+# Part 1. Alzheimer 치료제(lecithin) 효과 검증 임상실험
+```{r}
+alz <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW9/Alzheimer.xlsx',sheet=1)
+
+# a.
+alz %>% group_by(lecithin, t) %>% mutate(m = mean(y), s = ifelse(lecithin==1, 18,1)) %>% ggplot() + 
+  geom_point(aes(t, y, color = factor(s), shape = factor(s))) + 
+  scale_shape_manual(name='Taking', values=c(1, 18), label=c('Placebo', 'Lecithin')) +
+  geom_line(aes(t, m, color = factor(s))) + 
+  scale_color_manual(name='Taking', values=c('red','blue'), label=c('Placebo', 'Lecithin')) +
+  theme_bw() + labs(title = "Scattor Plot of MMSE") + theme(plot.title = element_text(hjust = 0.5)) 
+
+# Scatter Plot을 통해 placebo를 복용한 사람들의 MMSE는 내려가는 추세이고 Lecithin을 복용한 사람들의 MMSE는 올라가는 추세이다.
+
+# b.
+# type 1.
+alz %>% group_by(lecithin, t) %>% ggplot() +
+  geom_boxplot(aes(x=factor(t), y, fill = factor(lecithin)), alpha=0.5) + 
+  scale_fill_discrete(name = "Taking", labels = c('Placebo', 'Lecithin')) + 
+  theme_bw() + labs(title = "Box Plot of MMSE") + theme(plot.title = element_text(hjust = 0.5))
+
+# type 2.
+alz %>% group_by(lecithin, t) %>% mutate(new_t = ifelse(lecithin==1, t+10,t)) %>% ggplot() + 
+  geom_boxplot(aes(x=factor(new_t), y), alpha=0.5) + theme_bw() +
+  labs(title = "Box Plot of MMSE") + theme(plot.title = element_text(hjust = 0.5))
+  
+# t=0 시점에서 Lecithin을 복용할 랜덤 그룹의 MMSE 가 더 낮았지만 1번 복용 후부터 효과가 나타나고 있다.
+# 시간이 지날수록 Placebo를 복용한 그룹의 MMSE는 더 낮아지지만 Lecithin을 복용한 그룹의 MMSE는 높아지면서 (치매의 기준치인) 20에 가까워지고 있다. 
+
+# c.
+# Fixed Effect: long form 이용
+
+# ※ dbinom에서 p, n 순서로 적기
+
+### The model specification
+model.binom.FE <- "model{
+# Likelihood: L(a, b, c, d | Data)
+  for(i in 1:length(y)) { # 1:235
+    y[i] ~ dbinom(p[i], 30)
+    p[i] <- ilogit(a + c*delta[i] + (d*delta[i] + b)*t[i]/12)
+   }
+# prior distribution for parameters (a, b, c, d)
+    a ~ dunif(-20,20)
+    b ~ dunif(-20,20)
+    c ~ dunif(-20,20)
+    d ~ dunif(-20,20)
+ }"
+
+### Running the model in JAGS
+model.FE <- jags.model(textConnection(model.binom.FE), data = list(y = alz$y, t = alz$t, delta = alz$lecithin), n.chains = 3, n.adapt = 1000)
+update(model.FE, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.FE <- coda.samples(model.FE, variable.names=c("a", "b", "c", "d"), 
+                             n.iter=20000, thin=10)
+summary(mcmc.FE)$statistics[c(3,4),]
+summary(mcmc.FE)$quantiles[c(3,4),]
+# c, d의 신뢰구간에 0 포함 X, 약 복용에 따른 차이가 유의하다고 판단.
+
+plot(mcmc.FE[,c(1,2)])
+plot(mcmc.FE[,c(3,4)])
+# Trace Plot을 보면 여러 초기값에 대해서 mixed 됨, converge함을 확인 가능하다.
+
+autocorr.plot(mcmc.FE[,3])
+autocorr.plot(mcmc.FE[,4])
+# c, d 변수에 대해 확인. 자기 상관이 약간 존재, 만약 더 필요하면 좀더 burning
+
+
+# d.
+# Mixed Effect: subjects 마다 효과를 추가, short form이 필요
+alz.s <- read_xlsx('C:/USER/grad/2020-1/G11806 이론통계학1/HW9/Alzheimer.xlsx',sheet=2)
+alz.s.y <- alz.s[,c(2:6)]
+
+### The model specification
+
+# ※ ui는 매번 돌릴 때 한 값이 아니라 i마다 정해져야 함 (즉, 사전분포에 쓰면 안됨)
+# length(y)는 5라서 nrow(y)로 해야함, 그러나 nrow(y)는 인식 안됨. 그냥 1:47
+
+model.binom.ME <- "model{
+# Likelihood: L(a, b, c, d, ui, sigma | Data)
+  for(i in 1:47) { # 1:47
+    for(t in 1:5) {
+      y[i,t] ~ dbinom(p[i,t], 30)
+      p[i,t] <- ilogit(alpha[i] + beta[i]*(t-1)/12)
+    }
+    alpha[i] <- a + sigma*ui[i] + c*delta[i]
+    beta[i] <- b + d*delta[i]
+    ui[i] ~ dnorm(0, 1)
+  }
+# prior distribution for parameters (a, b, c, d, ui, sigma)
+    a ~ dunif(-20,20)
+    b ~ dunif(-20,20)
+    c ~ dunif(-20,20)
+    d ~ dunif(-20,20)
+    sigma ~ dunif(0, 10)
+ }"
+
+### Running the model in JAGS
+model.ME <- jags.model(textConnection(model.binom.ME), data = list(y = alz.s.y, delta = alz.s$lecithin), n.chains = 3, n.adapt = 1000)
+update(model.ME, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.ME <- coda.samples(model.ME, variable.names=c("a", "b", "c", "d", "sigma", "ui"), 
+                        n.iter=20000, thin=10)
+
+summary(mcmc.ME)$statistics[c(3,4),]
+summary(mcmc.ME)$quantiles[c(3,4),]
+# c의 신뢰구간에 0이 포함, 유의하지 않다고 볼 수 있음
+# d는 유의, 여전히 약 복용에 따른 차이는 존재
+plot(mcmc.ME[,c(1:2)]) # a, b
+plot(mcmc.ME[,c(3:4)]) # c, d
+plot(mcmc.ME[,c(5:6)])
+# 나머지 ui 46개 plot은 생략
+# Trace Plot을 보면 여러 초기값에 대해서 mixed 됨, converge함을 확인 가능하다.
+autocorr.plot(mcmc.ME[,3])
+autocorr.plot(mcmc.ME[,4])
+# c, d 변수에 대해 확인. c의 경우 자기 상관이 굉장히 크게 존재, d는 적당함.
+
+# e.
+mcmc.FE.info <- summary(mcmc.FE)
+mcmc.ME.info <- summary(mcmc.ME)
+
+df <- data.frame(estimate = mcmc.FE.info$statistics[,1], Lower = mcmc.FE.info$quantiles[,1], Upper = mcmc.FE.info$quantiles[,5],
+                 estimate. = mcmc.ME.info$statistics[1:4,1], Lower. = mcmc.ME.info$quantiles[1:4,1], Upper. = mcmc.ME.info$quantiles[1:4,5])
+df <- round(df,4)
+kable(df) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 1, "Fixed Effect" = 3, "Mixed Effect" = 3))
+
+df <- data.frame('1' = names(mcmc.ME.info$statistics[5:16,1]),
+                 value = round(mcmc.ME.info$statistics[5:16,1],4),
+                 '2' = names(mcmc.ME.info$statistics[17:28,1]),
+                 value. = round(mcmc.ME.info$statistics[17:28,1],4),
+                 '3' = names(mcmc.ME.info$statistics[29:40,1]),
+                 value.. = round(mcmc.ME.info$statistics[29:40,1],4),
+                 '4' = names(mcmc.ME.info$statistics[41:52,1]),
+                 value... = round(mcmc.ME.info$statistics[41:52,1],4), row.names = NULL)
+
+kable(df, col.names = NULL, caption = "Estimate of Mixed Effect ui & σ") %>% kable_styling(full_width=F)
+
+# Fixed Effect에 비해 Mixed Effect는 추정해야 할 파라미터 수가 훨씬 많아지므로 예측력이 떨어질 수 있음.
+# Random Effect가 추가되면 각 환자마다의 C.I. 추정과 시간에 따른 MMSE 값 예측 가능하여 병의 진행도를 알 수 있음.
+
+# f.
+
+a.hat <- mcmc.ME.info$statistics[1,1]; c.hat <- mcmc.ME.info$statistics[3,1]; sigma.hat <- mcmc.ME.info$statistics[5,1]
+ui.hat <- mcmc.ME.info$statistics[6:52,1]; delta <- alz.s$lecithin
+alpha.hat <- a.hat + sigma.hat*ui.hat + c.hat*delta
+
+y0 <- alz.s$y0
+alpha.star <- log((y0 + 1/2)/(30 - y0 + 1/2))
+
+ggplot() + geom_point(aes(x = alpha.star, y = alpha.hat)) +
+  geom_smooth(aes(x = alpha.star, y = alpha.hat),size=0.5, method='lm',se=F) +
+  theme_bw() + labs(title = "Scatter Plot of (α*, α.hat)") + theme(plot.title = element_text(hjust = 0.5)) + annotate("text", x=-3.5, y=0, label=paste("R.sq = ", round(summary(lm(alpha.hat ~ alpha.star))$r.squared,4)*100, "%", sep=""), alpha=0.7)
+
+# 추정된 alpha와 실제 alpha 사이의 선형 관계 만족, Bayes 방법으로 Mixed Effect 모형이 잘 추정되었다.
+```
+
+# Part 2. 비선형 Mixed effect 모형을 이용한 상어 성장곡선추정
+```{r}
+shark <- read.csv("C:/USER/grad/2020-1/G11806 이론통계학1/HW9/shark.csv", header=T)
+shark <- shark[-37,] # 성별 모름
+
+# a.
+ti <- shark$Days/365.25; yi <- shark$L2; xi <- shark$L1; si <- shark$Gender
+
+### The model specification
+
+model.norm.FE <- "model{
+# Likelihood: L(a, b, c1, c2 | Data)
+  for(i in 1:length(y)) {
+    y[i] ~ dnorm(mu[i], tau) # mean, precision
+    mu[i] <- alpha[i] - (alpha[i]-x[i])*exp(-beta[i]*t[i]) # g
+    alpha[i] <- a + c1*s[i]
+    beta[i] <- b + c2*s[i]
+   }
+# prior distribution for parameters (a, b, c1, c2)
+    a ~ dunif(250,350) # L∞
+    b ~ dunif(0, 1) # k
+    c1 ~ dunif(-50, 0) # L∞의 차이, female이 더 큼 (사전 정보)
+    c2 ~ dunif(0, 0.6) # k의 차이, male이 더 빠름 (사전 정보)
+    sigma ~ dunif(0, 20)
+    tau <- pow(sigma, -2) # precision = 1/var
+ }"
+
+### Running the model in JAGS
+model.FE <- jags.model(textConnection(model.norm.FE), data = list(y = yi, x = xi, t = ti, s = si), n.chains = 3, n.adapt = 1000)
+update(model.FE, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.FE <- coda.samples(model.FE, variable.names=c("a", "b", "c1", "c2", "sigma"), 
+                             n.iter=20000, thin=10)
+
+# b.
+summary(mcmc.FE)
+# c1, c2의 신뢰구간에 0이 포함 X, 유의하며 성별에 따른 성장모수 (L∞, k)의 차이 존재함.
+
+plot(mcmc.FE[,1:2]) # a, b
+plot(mcmc.FE[,3:4]) # c1, c2
+
+autocorr.plot(mcmc.FE[,3]) # c1
+autocorr.plot(mcmc.FE[,4]) # c2
+# c1, c2 변수에 대해 확인. 자기상관은 크지 않음. 적당함
+
+# c.
+### The model specification
+
+model.norm.ME <- "model{
+# Likelihood: L(a, b, c1, c2, sigma.a, sigma.b, sigma.e, ui, vi | Data)
+  for(i in 1:length(y)) {
+    y[i] ~ dnorm(mu[i], tau) # mean, precision
+    mu[i] <- alpha[i] - (alpha[i]-x[i])*exp(-beta[i]*t[i]) # g
+    alpha[i] <- a + ui[i]*sigma.a + c1*s[i] # ai
+    beta[i] <- b + vi[i]*sigma.b + c2*s[i] # bi
+    ui[i] ~ dnorm(0, 1)
+    vi[i] ~ dnorm(0, 1)
+   }
+# prior distribution for parameters (a, b, c1, c2, sigma.a, sigma.b, sigma.e)
+    a ~ dunif(250,350) # L∞
+    b ~ dunif(0, 1) # k
+    c1 ~ dunif(-50, 0) # L∞의 차이, female이 더 큼 (사전 정보)
+    c2 ~ dunif(0, 0.6) # k의 차이, male이 더 빠름 (사전 정보)
+    sigma.a ~ dunif(0, 200)
+    sigma.b ~ dunif(0, 20)
+    sigma.e ~ dunif(0, 20)
+    tau <- pow(sigma.e, -2) # precision = 1/var
+ }"
+
+model.ME <- jags.model(textConnection(model.norm.ME), data = list(y = yi, x = xi, t = ti, s = si), n.chains = 3, n.adapt = 1000)
+update(model.ME, 10000); ## Burnin for 10000 samples
+
+## use coda to summarize posterior samples
+##  thining
+mcmc.ME <- coda.samples(model.ME, variable.names=c("a", "b", "c1", "c2", "sigma.a", "sigma.b", "sigma.e", "ui", "vi"), 
+                        n.iter=20000, thin=10)
+
+# d.
+summary(mcmc.ME)$statistics[c(3,4),]
+summary(mcmc.ME)$quantiles[c(3,4),]
+# c1, c2의 신뢰구간에 0이 포함 X, 유의하며 성별에 따른 성장모수 (L∞, k)의 차이 여전히 존재함.
+# 마찬가지로 최대 성장 길이는 Female이 더 크고, 성장 속도는 Male이 더 빠르다
+
+plot(mcmc.ME[,1:2]) # a, b
+plot(mcmc.ME[,3:4]) # c1, c2
+# Trace plot c2는 약간 converge 하지 않는 것처럼 보임, C.I도 큼
+
+autocorr.plot(mcmc.ME[,3]) # c1
+autocorr.plot(mcmc.ME[,4]) # c2
+# c1, c2 변수에 대해 확인. 그런데, 자기상관이 엄청남.
+# 자기상관이 높으면 iteration을 많이, thining을 많이 해봐야함! mixed effect 특히 0으로 아예 만들기 어려운 경우도 있음.
+# 특히 CV로 여러 모델링 방법으로 돌려보고. mixed effect도 비슷하게 나오면 안심하면 됨.
+
+# JAGS, STAN 등에서 나오는 모든 통계량은 사후분포로부터 나오는 것
+
+# e.
+mcmc.FE.info <- summary(mcmc.FE)
+mcmc.ME.info <- summary(mcmc.ME)
+
+# Fixed Effect & Mixed Effect (a, b, c1, c2, sigma)
+df <- data.frame(estimate = mcmc.FE.info$statistics[,1], Lower = mcmc.FE.info$quantiles[,1], Upper = mcmc.FE.info$quantiles[,5],
+                 estimate. = mcmc.ME.info$statistics[c(1:4,7),1], Lower. = mcmc.ME.info$quantiles[c(1:4,7),1], Upper. = mcmc.ME.info$quantiles[c(1:4,7),5])
+df <- round(df,4)
+kable(df) %>% kable_styling(full_width=F) %>% add_header_above(c(" " = 1, "Fixed Effect" = 3, "Mixed Effect" = 3))
+
+
+# Mixed Effect의 sigma.a, sigma.b, ui, vi
+df <- data.frame('1' = names(mcmc.ME.info$statistics[c(5:6, 8:24),1]),
+                 value = round(mcmc.ME.info$statistics[c(5:6, 8:24),1],4),
+                 '2' = names(mcmc.ME.info$statistics[25:43,1]),
+                 value. = round(mcmc.ME.info$statistics[25:43,1],4),
+                 '3' = names(mcmc.ME.info$statistics[44:62,1]),
+                 value.. = round(mcmc.ME.info$statistics[44:62,1],4),
+                 '4' = c(names(mcmc.ME.info$statistics[63:79,1]), 'NULL', 'NULL'),
+                 value... = round(c(mcmc.ME.info$statistics[63:79,1], 0, 0),4), row.names = NULL)
+
+kable(df, col.names = NULL, caption = "Estimate of Mixed Effect sigma.a, sigma.b, ui, vi") %>% kable_styling(full_width=F)
+
+# 전반적으로 신뢰구간의 폭이 Mixed Effect가 더 길다. (그러나 엄청 큰 차이는 아니라고 볼 수도 있음.)
+# Mixed Effect에서 각 상어의 이질성을 나타내는 특성을 추가해주자 c1이 Fixed Effect의 c1에 비해 훨씬 작아졌다. 
+# 즉, 성별에 따른 차이도 있지만 유전적 환경적 이질성이 매우 크다고 가정할 경우 Mixed Effect를 고려하여 암수 최대 성장 길이 차이가 -18 (Fixed에서는 -46.63) 정도라고 생각할 수 있다.
+# 성장 속도도 반대로 Mixed Effect는 Fixed Effect에 비해 상대적으로 암수에 따른 차이가 늘어나서 0.15 (Fixed 에서는 0.032) 정도라고 생각할 수 있다.
+
+# f.
+a.hat <- mcmc.ME.info$statistics[1,1]; b.hat <- mcmc.ME.info$statistics[2,1]
+c1.hat <- mcmc.ME.info$statistics[3,1]; c2.hat <- mcmc.ME.info$statistics[4,1]; 
+sigma.a.hat <- mcmc.ME.info$statistics[5,1]; sigma.b.hat <- mcmc.ME.info$statistics[6,1] 
+ui.hat <- mcmc.ME.info$statistics[8:43,1]; vi.hat <- mcmc.ME.info$statistics[44:79,1];
+
+shark$L.hat <- a.hat + ui.hat*sigma.a.hat + c1.hat*shark$Gender # alpha hat, ai, L∞
+shark$k.hat <- b.hat + vi.hat*sigma.b.hat + c2.hat*shark$Gender # beta hat, bi, k
+
+p1 <- ggplot() + geom_point(aes(x = ui.hat, y = vi.hat, col=factor(shark$Gender))) +
+  scale_color_manual(name='Gender', values = c(2 ,3), label=c('F', 'M')) +
+  theme_bw() + labs(title = "Scattor Plot of (ui, vi)") + theme(plot.title = element_text(hjust = 0.5)) 
+
+p2 <- ggplot(data=shark) + geom_point(aes(x = L.hat, y = k.hat, col=factor(Gender))) +
+  scale_color_manual(name='Gender', values = c(2 ,3), label=c('F', 'M')) +
+  geom_smooth(aes(x = L.hat, y = k.hat, col=factor(Gender)), size=0.5, method='lm',se=F) +
+  theme_bw() + labs(title = "Scattor Plot of (L∞, k)") + theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(p1, p2, ncol=2)
+# L∞, k는 암수 차이가 매우 뚜렷하고, 각 상어의 특성 추정치인 ui, vi는 선형 관계를 보여 L∞, k 각각에 사용하는 특성 추정치가 비슷하게 추정되었다고 볼 수 있다.
+# 이는 환경적 유전적 요인이 최대 성장 길이와 성장 속도에 비슷하게 영향을 미치는 것을 의미할 수 있다.
+
+# g. 
+shark[which.max(shark$L.hat),] # 최대 성장 길이가 가장 긴 상어, 18번째 상어
+
+# h.
+# Fixed Effect에 비해 Mixed Effect는 추정해야 할 파라미터 수가 훨씬 많아지므로 예측력이 떨어질 수 있음. (예측치의 분산이 커짐)
+# Random Effect가 추가되면 각 상어마다의 C.I.와 성장 곡선을 추정할 수 있음.
+```
