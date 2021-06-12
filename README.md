@@ -66,7 +66,7 @@
 #### HW4 / Maximum Likelihood Estimation / R Optim
 - 1. Challenger호 O-ring 사고 확률예측
 - 2. 백혈병 환자 생존확률 예측
-- 3. Weibull Q-Q plot 을 이용한 강철/면화 강도 분포찾기
+- 3. Weibull Q-Q plot 을 이용한 강철/면화 강도 분포 찾기
 
 #### HW5 / Maximum Likelihood Estimation / R Optim
 - 1. Smoking and Mortality - 흡연과 수명의 연관성 분석
@@ -74,10 +74,10 @@
 - 3. Stature-Long bones data - 유골의 팔다리뼈 길이를 이용한 키 추정
 
 #### HW6 / Generalized Linear Model Estimation / R Optim, glm
-- 1. 로지스틱 모형 (Logistic Regression)을 이용한 기업부도예측 (Bankruptcy Prediction)
+- 1. 로지스틱 모형 (Logistic Regression)을 이용한 기업 부도 예측 (Bankruptcy Prediction)
 
 #### HW7 / Non linear Regession Model Estimation / R Optim, nlse
-- 1. 최적 예측 모형으로 아파트 가격예측
+- 1. 아파트 가격 예측 최적 예측 모형
 - 2. NLSE를 이용한 증기표 작성
 - 3. Mark-Recapture 방법을 이용한 타이거상어의 성장곡선 추정 (논문 리뷰)
 
@@ -102,8 +102,8 @@
 
 <br>
 
-# 이론통계학 HW7 발표 자료
-#### 1. 최적 예측 모형으로 아파트 가격예측
+# 이론통계학 우수 과제 발표 - HW7
+#### 1. 아파트 가격 예측 최적 예측 모형
 ![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C10.jpeg)
 <br>
 
