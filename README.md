@@ -1,5 +1,4 @@
 # 2020-Coursework-Snippet
-Code snippets for homework and study
 
 ### Library Description
 
@@ -104,16 +103,15 @@ Code snippets for homework and study
 <br>
 
 # 이론통계학 HW7 발표 자료
-- 1. 최적 예측 모형으로 아파트 가격예측
+#### 1. 최적 예측 모형으로 아파트 가격예측
 ![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C10.jpeg)
 <br>
 
-- 2. NLSE를 이용한 증기표 작성
+#### 2. NLSE를 이용한 증기표 작성
 ![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C21.jpeg)
 <br>
 
-- 3. Mark-Recapture 방법을 이용한 타이거상어의 성장곡선 추정
-
+#### 3. Mark-Recapture 방법을 이용한 타이거상어의 성장곡선 추정
 논문: [Growth and Maximum Size of Tiger Sharks (Galeocerdo cuvier) in Hawaii][paper-1]
 ![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C27.jpeg)
 
