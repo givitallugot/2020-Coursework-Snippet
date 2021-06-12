@@ -1,1 +1,2 @@
-web/vendor/*.rmd linguist-vendored
+*.rmd linguist-detectable=true
+*.html linguist-detectable=false
