@@ -116,4 +116,5 @@
 - 1. ALT를 이용한 Failure Times of Springs 모형 추정
 - 2. Cox-PHM을 이용한 Stanford Heart Transplant Data 모형 추정
 
-(아래 자료 외의) 최종 결과물은 생략합니다.
+
+* 최종 결과물은 개인 과제물이므로 생략합니다.
