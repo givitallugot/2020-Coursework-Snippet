@@ -48,7 +48,25 @@
 ``` 
 <br>
 
-# G11806 이론통계학1 HW Description
+
+# [이론통계학] 우수 과제 발표 - HW7
+#### 1. 아파트 가격 예측 최적 예측 모형
+![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C10.jpeg)
+<br>
+
+#### 2. NLSE를 이용한 증기표 작성
+![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C21.jpeg)
+<br>
+
+#### 3. Mark-Recapture 방법을 이용한 타이거상어의 성장곡선 추정
+논문: [Growth and Maximum Size of Tiger Sharks (Galeocerdo cuvier) in Hawaii][paper-1]
+![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C27.jpeg)
+
+[paper-1]: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0084799
+
+<br>
+
+# [이론통계학1] HW Description
 
 ### HW1 / Preprocessing, Visualization
 - 1. Excel Power BI
@@ -99,20 +117,3 @@
 - 2. Cox-PHM을 이용한 Stanford Heart Transplant Data 모형 추정
 
 (아래 자료 외의) 최종 결과물은 생략합니다.
-
-<br>
-
-# 이론통계학 우수 과제 발표 - HW7
-#### 1. 아파트 가격 예측 최적 예측 모형
-![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C10.jpeg)
-<br>
-
-#### 2. NLSE를 이용한 증기표 작성
-![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C21.jpeg)
-<br>
-
-#### 3. Mark-Recapture 방법을 이용한 타이거상어의 성장곡선 추정
-논문: [Growth and Maximum Size of Tiger Sharks (Galeocerdo cuvier) in Hawaii][paper-1]
-![image-1](https://github.com/givitallugot/2020-Coursework-Snippet/blob/main/G11806%20%EC%9D%B4%EB%A1%A0%ED%86%B5%EA%B3%84%ED%95%991/Image/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C27.jpeg)
-
-[paper-1]: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0084799
