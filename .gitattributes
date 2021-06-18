@@ -1,2 +1,1 @@
-$GIT_DIR/*.rmd linguist-detectable=true
-$GIT_DIR/*.html linguist-detectable=false
+*.rmd linguist-detectable=true
